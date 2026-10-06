@@ -1,3 +1,8 @@
+import {
+  normalizeStatus,
+  statusLabel,
+  statusTone,
+} from "@/lib/tender-workflow";
 import { Link } from "@tanstack/react-router";
 import { Sparkles, ChevronRight, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -48,6 +53,20 @@ export function AI({ children = "AI" }: { children?: ReactNode }) {
 }
 export function Status({ children }: { children: ReactNode }) {
   const value = String(children);
+  const workflow = [
+    "NEW",
+    "WAITING",
+    "IN_PROGRESS",
+    "REJECTED",
+    "COMPLETED_SUCCESS",
+    "COMPLETED_FAILED",
+  ].includes(value);
+  if (workflow)
+    return (
+      <span className={`status tone-${statusTone(value)}`}>
+        {statusLabel(value)}
+      </span>
+    );
   const tone =
     value.includes("Відх") || value === "C"
       ? "danger"
@@ -98,7 +117,7 @@ export function TenderTable({
   compact?: boolean;
 }) {
   const [preview, setPreview] = useState<Tender | null>(null);
-  const { updateTender } = useDemo();
+  const { viewTender } = useDemo();
   return (
     <>
       <div className="table-wrap">
@@ -120,7 +139,13 @@ export function TenderTable({
           </thead>
           <tbody>
             {items.map((t) => (
-              <tr key={t.id} onClick={() => setPreview(t)}>
+              <tr
+                key={t.id}
+                onClick={() => {
+                  viewTender(t.id);
+                  setPreview(t);
+                }}
+              >
                 <td>
                   <Score value={t.score} />
                 </td>
@@ -168,16 +193,6 @@ export function TenderTable({
                 технічні параметри, строк поставки та гарантійні вимоги.
               </p>
               <div className="flex justify-end gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    updateTender(preview.id, "Відхилено");
-                    toast.success("Тендер відхилено");
-                    setPreview(null);
-                  }}
-                >
-                  Відхилити
-                </Button>
                 <Button asChild>
                   <Link to="/tenders/$id" params={{ id: preview.id }}>
                     Відкрити картку

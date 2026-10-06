@@ -1,3 +1,5 @@
+import { useWorkspaceState } from "@/lib/workspace-state";
+import { TenderCard } from "./tender-card";
 import { useEffect, useRef, useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import {
@@ -84,12 +86,22 @@ import {
   TenderTable,
 } from "./common";
 import { managers, money, tenders as seed, type Tender } from "@/lib/demo-data";
+import {
+  matchesStatus,
+  normalizeStatus,
+  statusLabel,
+  statusOptions,
+  isCompleted,
+  kyivToday,
+} from "@/lib/tender-workflow";
+import { TenderWorksheet } from "./tender-worksheet";
+import { categoryLabel } from "@/lib/worksheet-model";
 import { detailFlow } from "@/lib/tender-detail";
 import { useDemo } from "@/lib/demo-store";
 
 export function Dashboard() {
   const { state } = useDemo();
-  const working = state.tenders.filter((t) => t.status === "В роботі");
+  const working = state.tenders.filter((t) => matchesStatus(t, "В роботі"));
   const workingBudget = money(working.reduce((sum, t) => sum + t.budget, 0));
   const kpis = [
     ["Нові тендери сьогодні", "182", "+14%"],
@@ -100,8 +112,8 @@ export function Dashboard() {
   return (
     <>
       <PageHead
-        title="Головна"
-        description="Оперативна картина тендерного портфеля на сьогодні"
+        title="Аналіз"
+        description="Огляд тендерного портфеля, пріоритети та результати AI-скринінгу"
         actions={
           <DemoButton result="Дані оновлено">
             <RefreshCw />
@@ -306,7 +318,7 @@ export function Dashboard() {
         <Panel title="Тендери в роботі">
           <div className="grid gap-2 sm:grid-cols-3">
             {state.tenders
-              .filter((t) => t.status === "В роботі")
+              .filter((t) => matchesStatus(t, "В роботі"))
               .slice(0, 5)
               .map((t, i) => (
                 <div key={t.id} className="rounded-md border p-3">
@@ -334,7 +346,7 @@ export function Dashboard() {
 }
 
 export function Inbox({ importOnly = false }: { importOnly?: boolean }) {
-  const { state, setState, updateTender } = useDemo();
+  const { state, setState, viewTender } = useDemo();
   const [filter, setFilter] = useState("Усі");
   const [progress, setProgress] = useState(0);
   const [running, setRunning] = useState(false);
@@ -360,12 +372,7 @@ export function Inbox({ importOnly = false }: { importOnly?: boolean }) {
         if (timer.current) clearInterval(timer.current);
         timer.current = null;
         setRunning(false);
-        setState((s) => ({
-          ...s,
-          tenders: s.tenders.map((t) =>
-            t.status === "Новий" ? { ...t, status: "Проаналізовано" } : t,
-          ),
-        }));
+
         toast.success("AI-скринінг завершено", {
           description: "Демонстраційна оцінка за профілем компанії",
         });
@@ -375,7 +382,9 @@ export function Inbox({ importOnly = false }: { importOnly?: boolean }) {
   const items =
     filter === "Усі"
       ? state.tenders
-      : state.tenders.filter((t) => t.status === filter);
+      : state.tenders.filter(
+          (t) => normalizeStatus(t.status) === normalizeStatus(filter),
+        );
   const importDialog = (
     <Dialog
       open={importOpen}
@@ -540,7 +549,7 @@ export function Inbox({ importOnly = false }: { importOnly?: boolean }) {
                 const extra = seed.slice(3, 6).map((t) => ({
                   ...t,
                   id: t.id + "-IMP",
-                  status: "Новий",
+                  status: "NEW",
                   manager: "—",
                   stage: "Аналіз",
                 }));
@@ -662,7 +671,7 @@ export function Inbox({ importOnly = false }: { importOnly?: boolean }) {
                           size="sm"
                           variant="ghost"
                           onClick={() => {
-                            updateTender(t.id, "Проаналізовано");
+                            viewTender(t.id);
                             toast.success("Швидкий аналіз завершено");
                           }}
                         >
@@ -672,13 +681,6 @@ export function Inbox({ importOnly = false }: { importOnly?: boolean }) {
                           <Link to="/tenders/$id" params={{ id: t.id }}>
                             Відкрити
                           </Link>
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => updateTender(t.id, "Відхилено")}
-                        >
-                          Відхилити
                         </Button>
                       </div>
                     </td>
@@ -696,98 +698,116 @@ export function Inbox({ importOnly = false }: { importOnly?: boolean }) {
 }
 
 export function Tenders() {
-  const { state } = useDemo();
-  const [tab, setTab] = useState("Усі");
-  const [q, setQ] = useState("");
-  const [priority, setPriority] = useState("all");
-  const [category, setCategory] = useState("all");
-  const [budget, setBudget] = useState("all");
-  const [date, setDate] = useState("all");
-  const [status, setStatus] = useState("all");
+  const { state, now } = useDemo();
+  const [filtersState, setFiltersState] = useWorkspaceState(
+    "filters",
+    {
+      tab: "Усі",
+      q: "",
+      priority: "all",
+      category: "all",
+      budget: "all",
+      date: "all",
+      status: "all",
+    },
+    (v) =>
+      !!v &&
+      typeof v === "object" &&
+      ["tab", "q", "priority", "category", "budget", "date", "status"].every(
+        (k) => typeof (v as Record<string, unknown>)[k] === "string",
+      ),
+  );
+  const { tab, q, priority, category, budget, date, status } = filtersState;
+  const setFilter = (key: keyof typeof filtersState) => (value: string) =>
+    setFiltersState((s) => ({ ...s, [key]: value }));
+  const setTab = setFilter("tab"),
+    setQ = setFilter("q"),
+    setPriority = setFilter("priority"),
+    setCategory = setFilter("category"),
+    setBudget = setFilter("budget"),
+    setDate = setFilter("date"),
+    setStatus = setFilter("status");
   const items = useMemo(
     () =>
       state.tenders
         .filter(
           (t) =>
             (priority === "all" || t.priority === priority) &&
-            (category === "all" || t.topCategory === category) &&
+            (category === "all" || categoryLabel(t) === category) &&
             (budget === "all" ||
               (budget === "small"
                 ? t.budget < 5000000
                 : budget === "medium"
                   ? t.budget >= 5000000 && t.budget < 15000000
                   : t.budget >= 15000000)) &&
-            (status === "all" || t.status === status) &&
+            (status === "all" ||
+              normalizeStatus(t.status) === normalizeStatus(status)) &&
             (tab === "Усі" ||
               (tab === "Нові"
-                ? t.status === "Новий"
-                : tab === "Проаналізовані"
-                  ? t.status === "Проаналізовано"
+                ? matchesStatus(t, "Новий")
+                : tab === "Очікування"
+                  ? matchesStatus(t, "Проаналізовано")
                   : tab === "В роботі"
-                    ? t.status === "В роботі"
-                    : t.status === "Відхилено")) &&
+                    ? matchesStatus(t, "В роботі")
+                    : tab === "Завершені"
+                      ? isCompleted(t.status)
+                      : matchesStatus(t, "Відхилено"))) &&
             matchesDeadline(t.deadline, date) &&
             `${t.id} ${t.title} ${t.customer}`
               .toLowerCase()
               .includes(q.toLowerCase()),
         )
         .sort((a, b) => b.score - a.score),
-    [state.tenders, q, priority, category, budget, date, status, tab],
+    [state.tenders, q, priority, category, budget, date, status, tab, now],
   );
-  const working = state.tenders.filter((t) => t.status === "В роботі");
+  const working = state.tenders.filter((t) => matchesStatus(t, "В роботі"));
   return (
-    <>
-      <PageHead
-        title="Тендери"
-        description="AI-скринінг, пріоритезація та робота команди в одному місці"
-        actions={
-          <div className="flex gap-2">
-            <Inbox importOnly />
-            <DemoButton variant="outline">
-              <Download />
-              Експорт
-            </DemoButton>
-          </div>
-        }
-      />
-      <Tabs value={tab} onValueChange={setTab}>
-        <TabsList className="mb-3 h-auto flex-wrap justify-start bg-card">
-          {["Усі", "Нові", "Проаналізовані", "В роботі", "Відхилені"].map(
-            (x) => (
+    <TenderWorksheet
+      items={items}
+      total={state.tenders.length}
+      query={q}
+      onQueryChange={setQ}
+      details={(t) => detailFlow(t, specs, documents)}
+      viewTabs={
+        <Tabs value={tab} onValueChange={setTab}>
+          <TabsList className="sheet-views-list">
+            {[
+              "Усі",
+              "Нові",
+              "Очікування",
+              "В роботі",
+              "Не беремо",
+              "Завершені",
+            ].map((x) => (
               <TabsTrigger key={x} value={x}>
                 {x}
                 <span className="ml-2 text-[10px] text-muted-foreground">
                   {x === "Усі"
                     ? state.tenders.length
                     : x === "Нові"
-                      ? state.tenders.filter((t) => t.status === "Новий").length
-                      : x === "Проаналізовані"
-                        ? state.tenders.filter(
-                            (t) => t.status === "Проаналізовано",
+                      ? state.tenders.filter((t) => matchesStatus(t, "Новий"))
+                          .length
+                      : x === "Очікування"
+                        ? state.tenders.filter((t) =>
+                            matchesStatus(t, "Проаналізовано"),
                           ).length
                         : x === "В роботі"
                           ? working.length
-                          : state.tenders.filter(
-                              (t) => t.status === "Відхилено",
-                            ).length}
+                          : x === "Завершені"
+                            ? state.tenders.filter((t) => isCompleted(t.status))
+                                .length
+                            : state.tenders.filter((t) =>
+                                matchesStatus(t, "REJECTED"),
+                              ).length}
                 </span>
               </TabsTrigger>
-            ),
-          )}
-        </TabsList>
-      </Tabs>
-      {tab === "В роботі" && <WorkingView items={working} />}
-      <Panel>
-        <div className="mb-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-[1.4fr_repeat(5,minmax(130px,1fr))]">
-          <div className="relative">
-            <Search className="absolute left-3 top-2.5 size-4 text-muted-foreground" />
-            <input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              className="field pl-9"
-              placeholder="Пошук…"
-            />
-          </div>
+            ))}
+          </TabsList>
+        </Tabs>
+      }
+      filters={
+        <div className="sheet-filters">
+          {" "}
           <Select value={priority} onValueChange={setPriority}>
             <SelectTrigger>
               <SelectValue />
@@ -805,13 +825,18 @@ export function Tenders() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Всі категорії</SelectItem>
-              {["Техніка", "Запчастини", "Обладнання", "Сервіс і роботи"].map(
-                (x) => (
-                  <SelectItem key={x} value={x}>
-                    {x}
-                  </SelectItem>
-                ),
-              )}
+              {[
+                "Техніка",
+                "Запчастини",
+                "Будівництво",
+                "Обладнання",
+                "Послуги",
+                "Інше",
+              ].map((x) => (
+                <SelectItem key={x} value={x}>
+                  {x}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
           <Select value={budget} onValueChange={setBudget}>
@@ -841,34 +866,44 @@ export function Tenders() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Всі статуси</SelectItem>
-              {["Новий", "Проаналізовано", "В роботі", "Відхилено"].map((x) => (
-                <SelectItem key={x} value={x}>
-                  {x}
+              {statusOptions.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                  {option.hint ? ` · ${option.hint}` : ""}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
-        {items.length ? <TenderGridTable items={items} /> : <Empty />}
-      </Panel>
-    </>
+      }
+      actions={
+        <>
+          <Inbox importOnly />
+          <DemoButton variant="outline">
+            <Download />
+            Експорт
+          </DemoButton>
+        </>
+      }
+    />
   );
 }
 
 function matchesDeadline(deadline: string, range: string) {
   if (range === "all") return true;
-  // The exported alpha uses the showcase date, keeping its filters repeatable.
-  const now = new Date(2026, 9, 6);
+  const now = new Date(kyivToday() + "T00:00:00Z");
   const [day, month, year] = deadline.split(".").map(Number);
   if (!day || !month || !year) return false;
-  const date = new Date(year, month - 1, day);
+  const date = new Date(Date.UTC(year, month - 1, day));
   if (range === "month")
     return (
       date >= now &&
-      date.getMonth() === now.getMonth() &&
-      date.getFullYear() === now.getFullYear()
+      date.getUTCMonth() === now.getUTCMonth() &&
+      date.getUTCFullYear() === now.getUTCFullYear()
     );
-  const sunday = new Date(2026, 9, 11, 23, 59, 59);
+  const sunday = new Date(now);
+  sunday.setUTCDate(sunday.getUTCDate() + ((7 - sunday.getUTCDay()) % 7));
+  sunday.setUTCHours(23, 59, 59, 999);
   return date >= now && date <= sunday;
 }
 
@@ -1185,502 +1220,18 @@ const documents = [
   },
 ] as const;
 export function TenderDetail({ id }: { id: string }) {
-  const { state, updateTender, assignTender, setState } = useDemo();
-  const t = state.tenders.find((x) => x.id === id);
-  const [loading, setLoading] = useState(false);
-  const [doc, setDoc] = useState<string | null>(null);
-  const [tasks, setTasks] = useState(false);
-  const [drafting, setDrafting] = useState(false);
-  const [draftsReady, setDraftsReady] = useState(false);
-  const [draftPreview, setDraftPreview] = useState<string | null>(null);
-  if (!t) return <Empty text="Тендер не знайдено" />;
-  const flow = detailFlow(t, specs, documents);
-  const currentDoc = flow.documents.find((item) => item.name === doc);
-  const rerun = () => {
-    setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
-      toast.success("Аналіз оновлено");
-    }, 900);
-  };
-  return (
-    <>
-      <PageHead
-        title={t.title}
-        description={`${t.id} · ${t.customer}`}
-        actions={
-          <div className="flex flex-wrap gap-2">
-            <Button
-              onClick={() => {
-                assignTender(
-                  t.id,
-                  t.manager === "—" ? managers[0].name : t.manager,
-                );
-                toast.success("Тендер додано в роботу");
-              }}
-            >
-              В роботу
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => updateTender(t.id, "Відхилено")}
-            >
-              Відхилити
-            </Button>
-            <Button variant="outline" onClick={rerun}>
-              <Sparkles />
-              {loading ? "Аналізуємо…" : "Повторний AI-аналіз"}
-            </Button>
-            <DemoButton variant="ghost" result="Відкрито демо-оригінал">
-              <MoreHorizontal />
-            </DemoButton>
-          </div>
-        }
-      />
-      <div className="mb-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        <Metric label="Бюджет" value={money(t.budget)} />
-        <Metric label="Дедлайн" value={t.deadline} />
-        <Metric label="AI score" value={`${t.score}/100`} />
-        <Metric label="Пріоритет" value={t.priority} />
-        <Metric label="Статус" value={t.status} />
-      </div>
-      <Tabs defaultValue="overview">
-        <TabsList className="mb-3 h-auto w-full justify-start overflow-x-auto bg-card p-1">
-          <TabsTrigger value="overview">Огляд</TabsTrigger>
-          <TabsTrigger value="spec">Специфікація</TabsTrigger>
-          <TabsTrigger value="docs">Документи</TabsTrigger>
-          <TabsTrigger value="prepare">Підготовка документів</TabsTrigger>
-          <TabsTrigger value="req">Вимоги</TabsTrigger>
-          <TabsTrigger value="ai">Аналіз AI</TabsTrigger>
-          <TabsTrigger value="risks">Ризики</TabsTrigger>
-          <TabsTrigger value="plan">План дій</TabsTrigger>
-          <TabsTrigger value="history">Історія</TabsTrigger>
-        </TabsList>
-        <TabsContent value="overview">
-          <div className="grid gap-3 lg:grid-cols-[1.3fr_.8fr]">
-            <Panel title="Основна інформація">
-              <Info
-                rows={[
-                  ["Предмет закупівлі", t.title],
-                  ["Замовник", t.customer],
-                  ["Категорія", `${t.topCategory} → ${t.category}`],
-                  ["Очікувана вартість", money(t.budget)],
-                  ["Строк поставки", flow.delivery],
-                  ["Регіон", t.region],
-                  ["Менеджер", t.manager],
-                  ["Етап", t.stage],
-                ]}
-              />
-            </Panel>
-            <Panel title="Короткий AI-summary">
-              <AI>AI висновок</AI>
-              <p className="mt-3 text-sm leading-6">{flow.summary}</p>
-            </Panel>
-          </div>
-        </TabsContent>
-        <TabsContent value="spec">
-          <Panel title="Специфікація">
-            {flow.parts.length ? (
-              <SpecPreview parts={flow.parts} />
-            ) : (
-              <Info rows={flow.technical} />
-            )}
-            {flow.parts.length > 0 && (
-              <div className="mt-4 space-y-2">
-                {flow.parts.map((part) => (
-                  <div key={part.code} className="flex gap-3 text-sm">
-                    <b>{part.code}</b>
-                    <span>{part.match}</span>
-                    <Status>{part.status}</Status>
-                  </div>
-                ))}
-              </div>
-            )}
-          </Panel>
-        </TabsContent>
-        <TabsContent value="docs">
-          <Panel title="Документи">
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {flow.documents.map((item, i) => (
-                <button
-                  key={item.name}
-                  onClick={() => setDoc(item.name)}
-                  className="rounded-md border p-4 text-left transition hover:border-primary hover:bg-muted"
-                >
-                  <div className="flex items-center gap-3">
-                    {i % 2 ? (
-                      <FileSpreadsheet className="text-success" />
-                    ) : (
-                      <FileText className="text-danger" />
-                    )}
-                    <div>
-                      <b className="text-sm">{item.name}</b>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {(i + 2) * 340} КБ · AI опрацьовано
-                      </p>
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </Panel>
-        </TabsContent>
-        <TabsContent value="prepare">
-          <Panel title="Підготовка документів">
-            <div className="mb-4 flex flex-col gap-3 border-b pb-4 md:flex-row md:items-center md:justify-between">
-              <div>
-                <AI>Контроль менеджера</AI>
-                <p className="mt-2 text-sm font-medium">
-                  AI формує чернетку — фінальне підтвердження менеджером
-                </p>
-              </div>
-              <Button
-                disabled={drafting}
-                onClick={() => {
-                  setDrafting(true);
-                  setTimeout(() => {
-                    setDrafting(false);
-                    setDraftsReady(true);
-                    toast.success("Чернетки сформовано");
-                  }, 900);
-                }}
-              >
-                <Sparkles className={drafting ? "animate-spin" : ""} />
-                {drafting ? "Формуємо…" : "Сформувати чернетки"}
-              </Button>
-            </div>
-            <div className="space-y-2">
-              {[
-                [
-                  "Гарантійний лист",
-                  draftsReady ? "Чернетка готова" : "Готовий шаблон",
-                ],
-                [
-                  "Довідка про аналогічні договори",
-                  draftsReady
-                    ? "2 договори додано"
-                    : "Потрібно підтягнути 2 договори",
-                ],
-                [
-                  "Технічна таблиця відповідності",
-                  draftsReady
-                    ? "Чернетка готова — підтвердити параметри"
-                    : "Очікує підтвердження параметрів",
-                ],
-                [
-                  "Цінова пропозиція",
-                  draftsReady
-                    ? "Чернетка готова — перевірте ціни"
-                    : "Очікує цін",
-                ],
-                ["Лист-згода з умовами договору", "Чернетка готова"],
-              ].map(([name, status]) => (
-                <div
-                  key={name}
-                  className="flex flex-col gap-3 rounded-md border p-4 sm:flex-row sm:items-center"
-                >
-                  <FileText className="text-primary" />
-                  <div className="flex-1">
-                    <b className="text-sm">{name}</b>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {status}
-                    </p>
-                  </div>
-                  <Status>{status}</Status>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setDraftPreview(name ?? null)}
-                  >
-                    Переглянути
-                  </Button>
-                </div>
-              ))}
-            </div>
-          </Panel>
-        </TabsContent>
-        <TabsContent value="req">
-          <Panel title="Кваліфікаційні вимоги">
-            <div className="grid gap-2 md:grid-cols-2">
-              {flow.requirements.map((x, i) => (
-                <div className="rounded-md border p-4" key={x}>
-                  <div className="flex gap-2">
-                    <CheckCircle2
-                      className={i === 2 ? "text-warning" : "text-success"}
-                    />
-                    <b className="text-sm">{x}</b>
-                  </div>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        className="mt-2 h-auto p-0 text-xs"
-                      >
-                        Демо-витяг із вимог
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="text-xs">
-                      Витяг із кваліфікаційних вимог. AI позначив цей пункт як
-                      важливий.
-                    </PopoverContent>
-                  </Popover>
-                </div>
-              ))}
-            </div>
-          </Panel>
-        </TabsContent>
-        <TabsContent value="ai">
-          <div className="grid gap-3 lg:grid-cols-2">
-            <Panel title={`Відповідність ${t.score}/100`}>
-              <Progress value={t.score} />
-              <AnalysisBlock title="Чому цікаво" text={flow.summary} />
-              <AnalysisBlock
-                title="Що потрібно перевірити"
-                text={flow.checks}
-              />
-              <AnalysisBlock
-                title="Основна складність"
-                text={flow.risks.join("; ")}
-              />
-              <AnalysisBlock
-                title="Рекомендований сценарій входу"
-                text={t.recommendation}
-              />
-              <Button onClick={rerun} disabled={loading}>
-                <RefreshCw className={loading ? "animate-spin" : ""} />
-                Оновити аналіз
-              </Button>
-            </Panel>
-            <Panel title="Рішення команди">
-              <p className="text-sm">{t.recommendation}</p>
-              <label className="mt-4 block text-sm">
-                Менеджер
-                <Select
-                  value={t.manager}
-                  onValueChange={(name) => assignTender(t.id, name)}
-                >
-                  <SelectTrigger className="mt-2">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="—">Не призначено</SelectItem>
-                    {managers.map((m) => (
-                      <SelectItem key={m.name} value={m.name}>
-                        {m.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </label>
-              <label className="mt-4 block text-sm">
-                Етап
-                <Select
-                  value={t.stage}
-                  onValueChange={(stage) =>
-                    setState((s) => ({
-                      ...s,
-                      tenders: s.tenders.map((item) =>
-                        item.id === t.id ? { ...item, stage } : item,
-                      ),
-                    }))
-                  }
-                >
-                  <SelectTrigger className="mt-2">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {[
-                      "Аналіз",
-                      "Прорахунок",
-                      "Уточнення",
-                      "Документи",
-                      "Подано",
-                      "Аукціон",
-                      "Завершено",
-                    ].map((stage) => (
-                      <SelectItem key={stage} value={stage}>
-                        {stage}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </label>
-            </Panel>
-          </div>
-        </TabsContent>
-        <TabsContent value="risks">
-          <Panel title="Ризики та обмеження">
-            <div className="space-y-2">
-              {flow.risks.map((risk, i) => (
-                <div
-                  key={risk}
-                  className="flex items-start gap-3 rounded-md border p-3"
-                >
-                  <AlertTriangle
-                    className={i === 0 ? "text-danger" : "text-warning"}
-                  />
-                  <div>
-                    <Status>Перевірити</Status>
-                    <p className="mt-2 text-sm">{risk}</p>
-                    <button
-                      className="mt-1 text-xs text-primary"
-                      onClick={() =>
-                        toast.info(`${risk}: звірити з оригіналом документації`)
-                      }
-                    >
-                      Переглянути джерело
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Panel>
-        </TabsContent>
-        <TabsContent value="plan">
-          <Panel title="AI-план дій">
-            <div className="space-y-2">
-              {flow.plan.map((x, i) => (
-                <div
-                  key={x}
-                  className="flex items-center gap-3 rounded-md border p-3"
-                >
-                  <span className="grid size-7 place-items-center rounded-full bg-muted text-xs">
-                    {i + 1}
-                  </span>
-                  <span className="flex-1 text-sm">{x}</span>
-                  {tasks && <Status>Створено</Status>}
-                </div>
-              ))}
-            </div>
-            <Button
-              className="mt-4"
-              onClick={() => {
-                setTasks(true);
-                toast.success(`${flow.plan.length} задач створено`);
-              }}
-            >
-              Створити задачі
-            </Button>
-          </Panel>
-        </TabsContent>
-        <TabsContent value="history">
-          <Panel title="Історія">
-            <div className="space-y-5">
-              {[
-                ["04.09 · 10:42", "Менеджер змінив статус на «В роботі»"],
-                [
-                  "04.09 · 09:18",
-                  `Документ «${flow.documents[1]?.name}» додано`,
-                ],
-                ["03.09 · 18:05", `AI-скринінг завершено · score ${t.score}`],
-                ["03.09 · 17:52", "Тендер імпортовано з Prozorro"],
-              ].map((x) => (
-                <div key={x[0]} className="flex gap-3">
-                  <Clock className="size-4 text-primary" />
-                  <div>
-                    <b className="text-xs">{x[0]}</b>
-                    <p className="text-sm text-muted-foreground">{x[1]}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Panel>
-        </TabsContent>
-      </Tabs>
-      <Dialog open={!!doc} onOpenChange={() => setDoc(null)}>
-        <DialogContent className="max-w-5xl">
-          <DialogHeader>
-            <DialogTitle>{doc}</DialogTitle>
-            <DialogDescription>
-              <span className="mr-2 rounded bg-warning/15 px-2 py-1 text-[11px] font-semibold text-warning">
-                DEMO-ДАНІ
-              </span>
-              <AI>AI опрацював документ</AI>
-            </DialogDescription>
-          </DialogHeader>
-          {currentDoc && (
-            <div className="grid max-h-[560px] gap-3 overflow-auto lg:grid-cols-[1.4fr_.7fr]">
-              <div className="rounded-md bg-muted p-5">
-                <div className="min-h-[390px] bg-card p-7 shadow">
-                  <div className="mb-6 flex items-center justify-between border-b pb-3">
-                    <h3 className="font-semibold">{currentDoc.name}</h3>
-                    <span className="text-[10px] font-bold text-muted-foreground">
-                      DEMO PREVIEW
-                    </span>
-                  </div>
-                  {currentDoc.kind === "technical" ? (
-                    <Info rows={flow.technical} />
-                  ) : currentDoc.kind === "sheet" ? (
-                    <SpecPreview parts={flow.parts} />
-                  ) : currentDoc.kind === "price" ? (
-                    <PricePreview parts={flow.parts} />
-                  ) : (
-                    <p className="whitespace-pre-line text-sm leading-7">
-                      {currentDoc.text}
-                    </p>
-                  )}
-                </div>
-              </div>
-              <aside className="rounded-md border border-ai/25 bg-ai/10 p-4">
-                <AI>AI витягнув</AI>
-                <div className="mt-4 space-y-3">
-                  {currentDoc.facts.map((fact) => (
-                    <div key={fact} className="flex gap-2 text-sm">
-                      <CheckCircle2 className="size-4 shrink-0 text-success" />
-                      <span>{fact}</span>
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-5 border-t pt-4">
-                  {currentDoc.sources.map((source) => (
-                    <button
-                      key={source}
-                      className="mb-2 block text-left text-xs font-medium text-primary"
-                      onClick={() => toast.info(source)}
-                    >
-                      {source}
-                    </button>
-                  ))}
-                </div>
-              </aside>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-      <Dialog open={!!draftPreview} onOpenChange={() => setDraftPreview(null)}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>{draftPreview}.docx</DialogTitle>
-            <DialogDescription>
-              <span className="mr-2 rounded bg-warning/15 px-2 py-1 text-[11px] font-semibold text-warning">
-                DEMO-ЧЕРНЕТКА
-              </span>
-              <AI>Створено на базі шаблону</AI>
-            </DialogDescription>
-          </DialogHeader>
-          <div className="rounded-md bg-muted p-6">
-            <div className="min-h-72 bg-card p-8 shadow">
-              <h3 className="text-center font-semibold">{draftPreview}</h3>
-              <p className="mt-8 text-sm leading-7">
-                {t.customer}
-                <br />
-                Закупівля {t.id}
-              </p>
-              <p className="mt-5 text-sm leading-7">
-                Цим листом підтверджуємо відповідність запропонованої продукції
-                вимогам тендерної документації та готовність виконати поставку у
-                встановлений строк.
-              </p>
-              <p className="mt-8 text-sm">
-                Керівник ____________ / погодити менеджеру
-              </p>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-    </>
+  const { state, viewTender, ready } = useDemo();
+  useEffect(() => {
+    if (ready) viewTender(id);
+  }, [id, ready, viewTender]);
+  const tender = state.tenders.find((t) => t.id === id);
+  return tender ? (
+    <TenderCard tender={tender} flow={detailFlow(tender, specs, documents)} />
+  ) : (
+    <Empty text="Тендер не знайдено" />
   );
 }
+
 function Info({ rows }: { rows: (string | number)[][] }) {
   return (
     <dl>
@@ -1812,13 +1363,13 @@ export function Pipeline() {
               <span className="rounded-full bg-card px-2 py-0.5">
                 {
                   state.tenders
-                    .filter((t) => t.status === "В роботі")
+                    .filter((t) => matchesStatus(t, "В роботі"))
                     .filter((t, i) => getCol(t, i) === c).length
                 }
               </span>
             </div>
             {state.tenders
-              .filter((t) => t.status === "В роботі")
+              .filter((t) => matchesStatus(t, "В роботі"))
               .map(
                 (t, i) =>
                   getCol(t, i) === c && (

@@ -3,9 +3,28 @@ import {
   useContext,
   useEffect,
   useState,
+  useCallback,
+  useRef,
   type ReactNode,
 } from "react";
 import { tenders as seed, type Tender } from "./demo-data";
+import {
+  normalizeTender,
+  newTender,
+  viewTender as markViewed,
+  saveComment as applyComment,
+  recalculateTender,
+  recordEvent,
+  STATUS_RECALC_DELAY_MS,
+  expireTender,
+  isCompleted,
+} from "./tender-workflow";
+
+const configuredDelay = Number(import.meta.env["VITE_STATUS_RECALC_DELAY_MS"]);
+const validDelay =
+  Number.isFinite(configuredDelay) && configuredDelay >= 0
+    ? configuredDelay
+    : STATUS_RECALC_DELAY_MS;
 
 type Rule = { name: string; weight: number; enabled: boolean };
 const initialKnowledge = {
@@ -29,7 +48,7 @@ type DemoState = {
   knowledge: typeof initialKnowledge;
 };
 const initial: DemoState = {
-  tenders: seed,
+  tenders: seed.map((t) => normalizeTender(t)),
   rules: [
     { name: "DONGFENG або XCMG", weight: 25, enabled: true },
     { name: "Точна товарна група", weight: 20, enabled: true },
@@ -45,8 +64,15 @@ const initial: DemoState = {
 type Ctx = {
   state: DemoState;
   setState: React.Dispatch<React.SetStateAction<DemoState>>;
-  updateTender: (id: string, status: string) => void;
-  assignTender: (id: string, manager: string) => void;
+  documentAction: (
+    id: string,
+    name: string,
+    action: "downloaded" | "parsed",
+  ) => void;
+  viewTender: (id: string) => void;
+  saveComment: (id: string, comment: string) => void;
+  now: Date;
+  ready: boolean;
 };
 const DemoContext = createContext<Ctx | undefined>(undefined);
 
@@ -62,7 +88,7 @@ function migrate(raw: unknown): DemoState {
     if (!tenders.some((t) => t.id === old.id))
       tenders.push({ ...seed[0], ...old });
   return {
-    tenders,
+    tenders: tenders.map((t) => normalizeTender(t)),
     rules: saved.rules ?? initial.rules,
     pipeline: saved.pipeline ?? {},
     settings: { ...initial.settings, ...saved.settings },
@@ -70,35 +96,127 @@ function migrate(raw: unknown): DemoState {
   };
 }
 export function DemoProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState(initial);
+  const [state, setInternalState] = useState(initial);
+  const stateRef = useRef(state);
+  stateRef.current = state;
+  const [now, setNow] = useState(() => new Date());
+  const setState: React.Dispatch<React.SetStateAction<DemoState>> = useCallback(
+    (update) =>
+      setInternalState((previous) => {
+        const next = typeof update === "function" ? update(previous) : update;
+        if (next === previous) return previous;
+        const known = new Set(previous.tenders.map((t) => t.id));
+        return {
+          ...next,
+          tenders: next.tenders.map((t) =>
+            recalculateTender(
+              known.has(t.id) ? normalizeTender(t) : newTender(t),
+            ),
+          ),
+        };
+      }),
+    [],
+  );
   const [ready, setReady] = useState(false);
   useEffect(() => {
     try {
       const value = localStorage.getItem("tenderpro-demo");
-      if (value) setState(migrate(JSON.parse(value)));
+      if (value) setInternalState(migrate(JSON.parse(value)));
     } catch {}
     setReady(true);
   }, []);
   useEffect(() => {
-    if (ready) localStorage.setItem("tenderpro-demo", JSON.stringify(state));
+    if (ready) {
+      try {
+        localStorage.setItem("tenderpro-demo", JSON.stringify(state));
+      } catch {}
+    }
   }, [state, ready]);
-  const updateTender = (id: string, status: string) =>
-    setState((s) => ({
-      ...s,
-      tenders: s.tenders.map((t) => (t.id === id ? { ...t, status } : t)),
-    }));
-  const assignTender = (id: string, manager: string) =>
+  useEffect(() => {
+    if (!ready) return;
+    const check = () => {
+      const time = new Date();
+      setNow((previous) =>
+        Math.floor(previous.getTime() / 60000) ===
+        Math.floor(time.getTime() / 60000)
+          ? previous
+          : time,
+      );
+      setInternalState((s) => {
+        const tenders = s.tenders.map((t) => recalculateTender(t, time));
+        return tenders.some((t, i) => t !== s.tenders[i])
+          ? { ...s, tenders }
+          : s;
+      });
+    };
+    check();
+    const timer = setInterval(check, 1000);
+    window.addEventListener("focus", check);
+    document.addEventListener("visibilitychange", check);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener("focus", check);
+      document.removeEventListener("visibilitychange", check);
+    };
+  }, [ready]);
+  const viewTender = useCallback(
+    (id: string) =>
+      setState((s) => ({
+        ...s,
+        tenders: s.tenders.map((t) => (t.id === id ? markViewed(t) : t)),
+      })),
+    [setState],
+  );
+  const saveComment = (id: string, comment: string) => {
+    const current = stateRef.current;
+    const next = {
+      ...current,
+      tenders: current.tenders.map((t) =>
+        t.id === id ? applyComment(t, comment, new Date(), validDelay) : t,
+      ),
+    };
+    stateRef.current = next;
+    setInternalState(next);
+    try {
+      localStorage.setItem("tenderpro-demo", JSON.stringify(next));
+    } catch {}
+  };
+  const documentAction = (
+    id: string,
+    name: string,
+    action: "downloaded" | "parsed",
+  ) =>
     setState((s) => ({
       ...s,
       tenders: s.tenders.map((t) =>
         t.id === id
-          ? { ...t, status: "В роботі", manager, stage: t.stage || "Аналіз" }
+          ? recordEvent(
+              {
+                ...t,
+                documentStates: {
+                  ...t.documentStates,
+                  [name]: { ...t.documentStates?.[name], [action]: true },
+                },
+              },
+              "document",
+              action === "downloaded"
+                ? "Завантажено демо-витяг: " + name
+                : "AI аналіз документа: " + name,
+            )
           : t,
       ),
     }));
   return (
     <DemoContext.Provider
-      value={{ state, setState, updateTender, assignTender }}
+      value={{
+        state,
+        setState,
+        documentAction,
+        viewTender,
+        saveComment,
+        now,
+        ready,
+      }}
     >
       {children}
     </DemoContext.Provider>
