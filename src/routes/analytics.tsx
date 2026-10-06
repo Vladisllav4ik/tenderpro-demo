@@ -1,0 +1,1 @@
+import { createFileRoute } from '@tanstack/react-router'; import { Analytics } from '@/components/tenderpro/pages'; export const Route=createFileRoute('/analytics')({component:Analytics});

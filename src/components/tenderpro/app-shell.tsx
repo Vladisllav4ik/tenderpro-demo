@@ -1,0 +1,19 @@
+import { Link, useRouterState } from "@tanstack/react-router";
+import { LayoutDashboard, Files, Tags, Building2, ChartNoAxesCombined, Download, Settings, Search, Bell, Sparkles, Menu, Circle } from "lucide-react";
+import { useState, type ReactNode, type ComponentType } from "react";
+import { nav } from "@/lib/demo-data";
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { DemoProvider } from "@/lib/demo-store";
+import { Toaster } from "@/components/ui/sonner";
+import { toast } from "sonner";
+
+const icons: ComponentType<{className?:string}>[] = [LayoutDashboard,Files,Tags,Building2,ChartNoAxesCombined,Download,Settings];
+export function AppShell({children}:{children:ReactNode}) {
+  const [mobile,setMobile]=useState(false); const path=useRouterState({select:(s)=>s.location.pathname});
+  return <DemoProvider><div className="min-h-screen bg-workspace"><aside className={cn("sidebar",mobile?"translate-x-0":"-translate-x-full lg:translate-x-0")}>
+    <div className="flex h-16 items-center border-b border-sidebar-border px-5"><div className="grid size-9 place-items-center rounded-md bg-sidebar-primary text-sidebar-primary-foreground"><Sparkles className="size-4"/></div><div className="ml-3"><div className="text-sm font-bold tracking-[.12em]">TENDERPRO</div><div className="text-[10px] text-sidebar-foreground/55">AI Tender Analytics</div></div></div>
+    <nav className="flex-1 space-y-1 p-3">{nav.map(([to,label],i)=>{const Icon=icons[i]??LayoutDashboard;const active=path===to||(to==="/tenders"&&path.startsWith("/tenders/"));return <Link key={to} to={to} onClick={()=>setMobile(false)} className={cn("nav-item",active&&"nav-item-active")}><Icon className="size-4"/><span>{label}</span>{label==="Тендери"&&<span className="ml-auto rounded-full bg-sidebar-primary px-2 text-[10px] text-sidebar-primary-foreground">17</span>}</Link>})}</nav>
+    <Link to="/profile" onClick={()=>setMobile(false)} className={cn("m-3 flex items-center gap-3 rounded-md border border-sidebar-border p-3 transition hover:bg-sidebar-foreground/10",path==="/profile"&&"bg-sidebar-foreground/10")}><span className="grid size-9 shrink-0 place-items-center rounded-full bg-sidebar-primary text-xs font-bold text-sidebar-primary-foreground">ВМ</span><span className="min-w-0 flex-1"><b className="block truncate text-xs">Влад Михайлов</b><span className="block text-[10px] text-sidebar-foreground/55">Адміністратор</span></span><Circle className="size-2 fill-success text-success"/></Link>
+  </aside><div className="lg:ml-64"><header className="topbar"><Button size="icon" variant="ghost" className="lg:hidden" onClick={()=>setMobile((v)=>!v)}><Menu/></Button><div className="relative max-w-lg flex-1"><Search className="absolute left-3 top-2.5 size-4 text-muted-foreground"/><input className="h-9 w-full rounded-md border bg-background pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-ring" placeholder="Пошук тендера, замовника, CPV…" onKeyDown={(e)=>{if(e.key==="Enter")toast.info(`Пошук: ${e.currentTarget.value||"всі тендери"}`)}}/></div><Button size="icon" variant="ghost" onClick={()=>toast("3 нові сповіщення",{description:"AI-скринінг завершено для 37 тендерів"})}><Bell/></Button><Button asChild variant="ghost" className="h-auto px-2"><Link to="/profile"><span className="grid size-8 place-items-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">ВМ</span><span className="hidden text-left text-xs sm:block"><b className="block">Влад Михайлов</b><span className="text-muted-foreground">Адміністратор</span></span></Link></Button></header><main className="min-h-[calc(100vh-64px)] p-4 md:p-6">{children}</main></div>{mobile&&<button aria-label="Закрити меню" className="fixed inset-0 z-30 bg-overlay lg:hidden" onClick={()=>setMobile(false)}/>}</div><Toaster richColors position="top-right"/></DemoProvider>;
+}

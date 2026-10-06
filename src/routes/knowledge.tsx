@@ -1,0 +1,1 @@
+import { createFileRoute } from '@tanstack/react-router'; import { Knowledge } from '@/components/tenderpro/pages'; export const Route=createFileRoute('/knowledge')({component:Knowledge});

@@ -1,0 +1,1 @@
+import { createFileRoute } from '@tanstack/react-router'; import { Inbox } from '@/components/tenderpro/pages'; export const Route=createFileRoute('/inbox')({component:Inbox});

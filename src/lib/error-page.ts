@@ -1,0 +1,1 @@
+export function renderErrorPage(): string { return `<!doctype html><html><body><h1>This page didn't load</h1><a href="/">Go home</a></body></html>`; }

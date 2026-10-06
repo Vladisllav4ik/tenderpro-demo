@@ -1,0 +1,1 @@
+import { createFileRoute } from '@tanstack/react-router'; import { Rules } from '@/components/tenderpro/pages'; export const Route=createFileRoute('/rules')({component:Rules});

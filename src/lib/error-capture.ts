@@ -1,0 +1,1 @@
+let lastCapturedError: unknown; export function consumeLastCapturedError(){const e=lastCapturedError;lastCapturedError=undefined;return e;} const original=console.error.bind(console); console.error=(...args:unknown[])=>{lastCapturedError=args[0];original(...args)};

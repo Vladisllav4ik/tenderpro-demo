@@ -1,0 +1,2 @@
+import * as React from "react"; import * as P from "@radix-ui/react-progress"; import { cn } from "@/lib/utils";
+export const Progress=React.forwardRef<React.ElementRef<typeof P.Root>,React.ComponentPropsWithoutRef<typeof P.Root>>(({className,value=0,...p},ref)=><P.Root ref={ref} className={cn("relative h-2 w-full overflow-hidden rounded-full bg-secondary",className)} {...p}><P.Indicator className="h-full bg-primary transition-all" style={{transform:`translateX(-${100-(Number(value)||0)}%)`}}/></P.Root>); Progress.displayName="Progress";

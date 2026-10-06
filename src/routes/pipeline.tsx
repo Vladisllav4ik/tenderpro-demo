@@ -1,0 +1,1 @@
+import { createFileRoute } from '@tanstack/react-router'; import { Pipeline } from '@/components/tenderpro/pages'; export const Route=createFileRoute('/pipeline')({component:Pipeline});

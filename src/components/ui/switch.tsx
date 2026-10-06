@@ -1,0 +1,2 @@
+import * as React from "react"; import * as S from "@radix-ui/react-switch"; import { cn } from "@/lib/utils";
+export const Switch=React.forwardRef<React.ElementRef<typeof S.Root>,React.ComponentPropsWithoutRef<typeof S.Root>>(({className,...p},ref)=><S.Root ref={ref} className={cn("inline-flex h-5 w-9 items-center rounded-full bg-input data-[state=checked]:bg-primary",className)} {...p}><S.Thumb className="block size-4 translate-x-0.5 rounded-full bg-background transition data-[state=checked]:translate-x-[18px]"/></S.Root>); Switch.displayName="Switch";
