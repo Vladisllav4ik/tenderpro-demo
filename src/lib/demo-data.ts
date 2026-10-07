@@ -1,10 +1,31 @@
 export type Tender = {
+  subject?: string;
+  cpv?: string | null;
+  totalAmount?: number;
+  documents?: readonly import("./tender-detail").DetailDocument[];
+  aiSummary?: string;
+  risks?: string[];
+  aiScore?: number | null;
+  sourceUrl?: string;
+  description?: string;
+  relevance?: "accepted" | "rejected";
+  relevanceReason?: string;
+  analysis?: import("./tender-detail").DetailFlow;
+  statusHistory?: NonNullable<Tender["history"]>;
+  createdAt?: string | null;
+  updatedAt?: string | null;
   id: string;
   title: string;
   customer: string;
   category: string;
   topCategory:
-    "Техніка" | "Запчастини" | "Обладнання" | "Сервіс і роботи" | "Інше";
+    | "Техніка"
+    | "Запчастини"
+    | "Обладнання"
+    | "Матеріали"
+    | "Паливо"
+    | "Сервіс і роботи"
+    | "Інше";
   budget: number;
   deadline: string;
   region: string;

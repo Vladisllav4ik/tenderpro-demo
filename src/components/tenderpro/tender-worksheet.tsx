@@ -1,3 +1,6 @@
+import { useAccount } from "@/lib/account";
+import { mergeAgentResult } from "@/lib/agents/merge";
+import { processTenders } from "@/lib/agents/client";
 import { TableRangePicker } from "./table-range-picker";
 import { WorksheetImport } from "./worksheet-import";
 import type { TableRange } from "@/lib/table-range";
@@ -91,14 +94,6 @@ import {
 import type { DetailFlow } from "@/lib/tender-detail";
 
 const scales = [100, 125, 150, 175, 200];
-const navigation = [
-  ["/tenders", "Тендери"],
-  ["/dashboard", "Аналіз"],
-  ["/inbox", "Імпорт / Джерела"],
-  ["/categories", "Категорії"],
-  ["/settings", "Налаштування"],
-  ["/profile", "Профіль"],
-] as const;
 export function TenderWorksheet({
   items,
   total,
@@ -120,8 +115,15 @@ export function TenderWorksheet({
   filters: ReactNode;
   details: (t: Tender) => DetailFlow;
 }) {
+  const account = useAccount();
+  const navigation = [
+    ["/tenders", "Тендери"],
+    ["/settings", "Налаштування"],
+    ...(account?.role === "ADMIN" ? [["/agents", "AI Агенти"]] : []),
+  ] as const;
   const navigate = useNavigate();
-  const { state, viewTender, saveComment, now, ready } = useDemo();
+  const [processing, setProcessing] = useState(false);
+  const { state, setState, viewTender, saveComment, now, ready } = useDemo();
   const [zoom, setZoom, workspaceReady] = useWorkspaceState("zoom", 100, (v) =>
     scales.includes(v as number),
   );
@@ -174,7 +176,8 @@ export function TenderWorksheet({
       sort: typeof update === "function" ? update(s.sort) : update,
     }));
   useEffect(() => {
-    if (compactReady && detailedReady) writeWorkspace("sort", sort);
+    if (compactReady && detailedReady)
+      writeWorkspace("sort", sort, account?.id);
   }, [sort, compactReady, detailedReady]);
   const draggingColumn = useRef<ColumnKey | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -262,12 +265,12 @@ export function TenderWorksheet({
       return;
     const frame = requestAnimationFrame(() => {
       scroller.current?.scrollTo({
-        left: Number(readWorkspace("scrollX", 0)) || 0,
-        top: Number(readWorkspace("scrollY", 0)) || 0,
+        left: Number(readWorkspace("scrollX", 0, account?.id)) || 0,
+        top: Number(readWorkspace("scrollY", 0, account?.id)) || 0,
       });
       if (scroller.current) {
-        writeWorkspace("scrollX", scroller.current.scrollLeft);
-        writeWorkspace("scrollY", scroller.current.scrollTop);
+        writeWorkspace("scrollX", scroller.current.scrollLeft, account?.id);
+        writeWorkspace("scrollY", scroller.current.scrollTop, account?.id);
       }
     });
     return () => cancelAnimationFrame(frame);
@@ -514,6 +517,36 @@ export function TenderWorksheet({
           </PopoverTrigger>
           <PopoverContent className="sheet-menu" align="start">
             <p className="sheet-menu-heading">Робочий простір</p>
+            <button
+              disabled={processing || !ready || items.length === 0}
+              onClick={async () => {
+                setProcessing(true);
+                try {
+                  const result = await processTenders({
+                    data: items.slice(0, 100),
+                  });
+                  const updates = new Map(result.tenders.map((t) => [t.id, t]));
+                  setState((s) => ({
+                    ...s,
+                    tenders: s.tenders.map((t) => {
+                      const update = updates.get(t.id);
+                      return update ? mergeAgentResult(t, update) : t;
+                    }),
+                  }));
+                  toast.success(
+                    `Mock: прийнято ${result.accepted}, відсіяно ${result.rejected}. Оброблено до 100 видимих тендерів.`,
+                  );
+                } catch (e) {
+                  toast.error(
+                    e instanceof Error ? e.message : "Помилка обробки",
+                  );
+                } finally {
+                  setProcessing(false);
+                }
+              }}
+            >
+              {processing ? "Обробка…" : "Обробити агентами (mock)"}
+            </button>
             {navigation.map(([to, label]) => (
               <Link className="sheet-nav-link" key={to} to={to}>
                 {label}
@@ -817,8 +850,8 @@ export function TenderWorksheet({
       <div
         ref={scroller}
         onScroll={(e) => {
-          writeWorkspace("scrollX", e.currentTarget.scrollLeft);
-          writeWorkspace("scrollY", e.currentTarget.scrollTop);
+          writeWorkspace("scrollX", e.currentTarget.scrollLeft, account?.id);
+          writeWorkspace("scrollY", e.currentTarget.scrollTop, account?.id);
         }}
         className="sheet-scroll"
         tabIndex={0}
@@ -990,8 +1023,17 @@ export function TenderWorksheet({
                       </a>
                     ) : c.key === "objects" ? (
                       <ObjectsCell tender={t} zoom={zoom} />
-                    ) : c.key === "score" && t.analysisPending ? (
-                      <span title="AI аналіз ще не виконано">-</span>
+                    ) : c.key === "score" &&
+                      (t.analysisPending || t.aiScore === null) ? (
+                      <span
+                        title={
+                          t.analysisPending
+                            ? "AI аналіз ще не виконано"
+                            : "AI score не визначено у mock-розборі"
+                        }
+                      >
+                        -
+                      </span>
                     ) : c.key === "score" ? (
                       <span
                         className={`sheet-score tone-${t.score >= 80 ? "green" : t.score >= 50 ? "yellow" : "red"}`}
@@ -1128,7 +1170,7 @@ export function TenderWorksheet({
                     ["Категорія", selected.topCategory],
                     [
                       "AI score",
-                      selected.analysisPending
+                      selected.analysisPending || selected.aiScore === null
                         ? "-"
                         : `${selected.score}/100 · ${selected.priority}`,
                     ],

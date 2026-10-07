@@ -168,12 +168,29 @@ export const amount = (value: number) =>
 export function categoryLabel(
   t: Tender,
 ):
-  "Техніка" | "Запчастини" | "Будівництво" | "Обладнання" | "Послуги" | "Інше" {
+  | "Техніка"
+  | "Запчастини"
+  | "Будівництво"
+  | "Обладнання"
+  | "Матеріали"
+  | "Паливо"
+  | "Послуги"
+  | "Інше" {
+  if (t.topCategory === "Матеріали" || t.topCategory === "Паливо")
+    return t.topCategory;
   if (["Техніка", "Запчастини", "Обладнання"].includes(t.topCategory))
     return t.topCategory as "Техніка" | "Запчастини" | "Обладнання";
   if (t.topCategory === "Сервіс і роботи")
     return /Будівель|Будівниц/.test(t.category) ? "Будівництво" : "Послуги";
   return "Інше";
+}
+export function matchesRelevance(t: Tender, filter: string) {
+  return (
+    filter === "all" ||
+    (filter === "rejected"
+      ? t.relevance === "rejected"
+      : t.relevance !== "rejected")
+  );
 }
 export function tableTender(t: Tender, flow?: DetailFlow): Tender {
   if (t.importSource === "excel") flow = undefined;
@@ -366,7 +383,7 @@ export function worksheetValue(
     return (t[key as "specialRequirements"] ?? []).join("\n") || "-";
   if (key === "quantity" || key === "unitPrice") return t[key] ?? "-";
   if (key === "unit" || key === "address") return t[key] ?? "-";
-  if (key === "score" && t.analysisPending) return "-";
+  if (key === "score" && (t.analysisPending || t.aiScore === null)) return "-";
   if (key === "budget" || key === "score") return t[key];
   return String(t[key as "title"]) || "-";
 }
@@ -392,7 +409,7 @@ export const periodCaption = (items: Tender[], now: Date) => {
 };
 
 export function worksheetPreview(t: Tender, flow: DetailFlow): DetailFlow {
-  if (t.importSource !== "excel") return flow;
+  if (t.analysis || t.importSource !== "excel") return flow;
   const data = tableTender(t);
   return {
     parts: [],

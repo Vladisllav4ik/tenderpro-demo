@@ -1,122 +1,79 @@
-import { useWorkspaceState } from "@/lib/workspace-state";
 import { Link, useRouterState } from "@tanstack/react-router";
-import {
-  BarChart3,
-  Box,
-  ChevronLeft,
-  ChevronRight,
-  Download,
-  Files,
-  Menu,
-  Settings,
-  Tags,
-  Upload,
-  Users,
-} from "lucide-react";
 import { type ReactNode } from "react";
-import { cn } from "@/lib/utils";
+import { Box, Files, Settings, Bot } from "lucide-react";
 import { DemoProvider } from "@/lib/demo-store";
+import { useAccount } from "@/lib/account";
 import { Toaster } from "@/components/ui/sonner";
-
-const navigation = [
-  { to: "/tenders", label: "Тендери", Icon: Files },
-  { to: "/dashboard", label: "Аналіз", Icon: BarChart3 },
-  { to: "/inbox", label: "Імпорт / Джерела", Icon: Upload },
-  { to: "/categories", label: "Категорії", Icon: Tags },
-  { to: "/settings", label: "Налаштування", Icon: Settings },
-] as const;
-
 export function AppShell({ children }: { children: ReactNode }) {
-  const [collapsed, setCollapsed] = useWorkspaceState(
-    "sidebarCollapsed",
-    false,
-    (v) => typeof v === "boolean",
-  );
+  const account = useAccount();
   const path = useRouterState({ select: (s) => s.location.pathname });
+  if (!account || path === "/login")
+    return (
+      <>
+        {children}
+        <Toaster richColors />
+      </>
+    );
   const worksheet = path === "/tenders" || path === "/tenders/";
   return (
-    <DemoProvider>
+    <DemoProvider key={account.id}>
       {worksheet ? (
         <main className="worksheet-main">{children}</main>
       ) : (
-        <div className={`workspace-shell ${collapsed ? "nav-collapsed" : ""}`}>
+        <div className="workspace-shell">
           <aside className="workspace-nav">
             <Link to="/tenders" className="workspace-logo" title="TenderPro">
               <span className="sheet-mark">
                 <Box />
               </span>
-              {!collapsed && <strong>TenderPro</strong>}
+              <strong>TenderPro</strong>
             </Link>
-            <button
-              className="workspace-collapse"
-              aria-label={collapsed ? "Розгорнути меню" : "Згорнути меню"}
-              onClick={() => setCollapsed((v) => !v)}
-            >
-              {collapsed ? <ChevronRight /> : <ChevronLeft />}
-            </button>
             <nav>
-              {navigation.map(({ to, label, Icon }) => (
+              <Link
+                className={`workspace-nav-item ${path.startsWith("/tenders/") ? "is-active" : ""}`}
+                to="/tenders"
+                title="Тендери"
+              >
+                <Files />
+                <span>Тендери</span>
+              </Link>
+              <Link
+                className={`workspace-nav-item ${path === "/settings" ? "is-active" : ""}`}
+                to="/settings"
+                title="Налаштування"
+              >
+                <Settings />
+                <span>Налаштування</span>
+              </Link>
+              {account.role === "ADMIN" && (
                 <Link
-                  key={to}
-                  to={to}
-                  title={label}
-                  className={cn(
-                    "workspace-nav-item",
-                    (path === to ||
-                      (to === "/tenders" && path.startsWith("/tenders/"))) &&
-                      "is-active",
-                  )}
+                  className={`workspace-nav-item ${path === "/agents" ? "is-active" : ""}`}
+                  to="/agents"
+                  title="AI Агенти"
                 >
-                  <Icon />
-                  {!collapsed && <span>{label}</span>}
+                  <Bot />
+                  <span>AI Агенти</span>
                 </Link>
-              ))}
-            </nav>
-            {!collapsed && (
-              <div className="workspace-secondary">
-                <span>ІНШІ РОЗДІЛИ</span>
-                <Link to="/analytics">
-                  <BarChart3 />
-                  Аналітика
-                </Link>
-                <Link to="/customers">
-                  <Users />
-                  Замовники
-                </Link>
-                <Link to="/export">
-                  <Download />
-                  Експорт
-                </Link>
-              </div>
-            )}
-            <Link to="/profile" className="workspace-user" title="Профіль">
-              <span>ВМ</span>
-              {!collapsed && (
-                <div>
-                  <b>Влад Михайлов</b>
-                  <small>Адміністратор</small>
-                </div>
               )}
+            </nav>
+            <Link
+              className="workspace-user"
+              to="/settings"
+              title={account.name}
+            >
+              <span>{account.role === "ADMIN" ? "А" : "Д"}</span>
+              <div>
+                <b>{account.name}</b>
+                <small>{account.role} · demo</small>
+              </div>
             </Link>
           </aside>
           <div className="workspace-content">
             <header className="workspace-header">
-              <button
-                aria-label="Згорнути або розгорнути меню"
-                onClick={() => setCollapsed((v) => !v)}
-              >
-                <Menu />
-              </button>
-              <span>
-                Робочий простір <ChevronRight />{" "}
-                <b>
-                  {navigation.find((item) => item.to === path)?.label ??
-                    "TenderPro"}
-                </b>
-              </span>
+              <span>TenderPro · {account.name}</span>
               <Link to="/tenders" className="workspace-return">
                 <Files />
-                До робочого листа
+                До таблиці
               </Link>
             </header>
             <main className="workspace-page">{children}</main>

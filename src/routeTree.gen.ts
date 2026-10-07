@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AgentsRouteImport } from './routes/agents'
 import { Route as AnalyticsRouteImport } from './routes/analytics'
 import { Route as CategoriesRouteImport } from './routes/categories'
 import { Route as CustomersRouteImport } from './routes/customers'
@@ -17,6 +18,7 @@ import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as ExportRouteImport } from './routes/export'
 import { Route as InboxRouteImport } from './routes/inbox'
 import { Route as KnowledgeRouteImport } from './routes/knowledge'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as PipelineRouteImport } from './routes/pipeline'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as RulesRouteImport } from './routes/rules'
@@ -28,6 +30,11 @@ import { Route as TendersIdRouteImport } from './routes/tenders.$id'
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AgentsRoute = AgentsRouteImport.update({
+  id: '/agents',
+  path: '/agents',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AnalyticsRoute = AnalyticsRouteImport.update({
@@ -63,6 +70,11 @@ const InboxRoute = InboxRouteImport.update({
 const KnowledgeRoute = KnowledgeRouteImport.update({
   id: '/knowledge',
   path: '/knowledge',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PipelineRoute = PipelineRouteImport.update({
@@ -103,6 +115,7 @@ const TendersIdRoute = TendersIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/agents': typeof AgentsRoute
   '/analytics': typeof AnalyticsRoute
   '/categories': typeof CategoriesRoute
   '/customers': typeof CustomersRoute
@@ -110,6 +123,7 @@ export interface FileRoutesByFullPath {
   '/export': typeof ExportRoute
   '/inbox': typeof InboxRoute
   '/knowledge': typeof KnowledgeRoute
+  '/login': typeof LoginRoute
   '/pipeline': typeof PipelineRoute
   '/profile': typeof ProfileRoute
   '/rules': typeof RulesRoute
@@ -120,6 +134,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/agents': typeof AgentsRoute
   '/analytics': typeof AnalyticsRoute
   '/categories': typeof CategoriesRoute
   '/customers': typeof CustomersRoute
@@ -127,6 +142,7 @@ export interface FileRoutesByTo {
   '/export': typeof ExportRoute
   '/inbox': typeof InboxRoute
   '/knowledge': typeof KnowledgeRoute
+  '/login': typeof LoginRoute
   '/pipeline': typeof PipelineRoute
   '/profile': typeof ProfileRoute
   '/rules': typeof RulesRoute
@@ -137,6 +153,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/agents': typeof AgentsRoute
   '/analytics': typeof AnalyticsRoute
   '/categories': typeof CategoriesRoute
   '/customers': typeof CustomersRoute
@@ -144,6 +161,7 @@ export interface FileRoutesById {
   '/export': typeof ExportRoute
   '/inbox': typeof InboxRoute
   '/knowledge': typeof KnowledgeRoute
+  '/login': typeof LoginRoute
   '/pipeline': typeof PipelineRoute
   '/profile': typeof ProfileRoute
   '/rules': typeof RulesRoute
@@ -156,6 +174,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/agents'
     | '/analytics'
     | '/categories'
     | '/customers'
@@ -163,6 +182,7 @@ export interface FileRouteTypes {
     | '/export'
     | '/inbox'
     | '/knowledge'
+    | '/login'
     | '/pipeline'
     | '/profile'
     | '/rules'
@@ -173,6 +193,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/agents'
     | '/analytics'
     | '/categories'
     | '/customers'
@@ -180,6 +201,7 @@ export interface FileRouteTypes {
     | '/export'
     | '/inbox'
     | '/knowledge'
+    | '/login'
     | '/pipeline'
     | '/profile'
     | '/rules'
@@ -189,6 +211,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/agents'
     | '/analytics'
     | '/categories'
     | '/customers'
@@ -196,6 +219,7 @@ export interface FileRouteTypes {
     | '/export'
     | '/inbox'
     | '/knowledge'
+    | '/login'
     | '/pipeline'
     | '/profile'
     | '/rules'
@@ -207,6 +231,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AgentsRoute: typeof AgentsRoute
   AnalyticsRoute: typeof AnalyticsRoute
   CategoriesRoute: typeof CategoriesRoute
   CustomersRoute: typeof CustomersRoute
@@ -214,6 +239,7 @@ export interface RootRouteChildren {
   ExportRoute: typeof ExportRoute
   InboxRoute: typeof InboxRoute
   KnowledgeRoute: typeof KnowledgeRoute
+  LoginRoute: typeof LoginRoute
   PipelineRoute: typeof PipelineRoute
   ProfileRoute: typeof ProfileRoute
   RulesRoute: typeof RulesRoute
@@ -228,6 +254,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/agents': {
+      id: '/agents'
+      path: '/agents'
+      fullPath: '/agents'
+      preLoaderRoute: typeof AgentsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/analytics': {
@@ -277,6 +310,13 @@ declare module '@tanstack/react-router' {
       path: '/knowledge'
       fullPath: '/knowledge'
       preLoaderRoute: typeof KnowledgeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/pipeline': {
@@ -346,6 +386,7 @@ const TendersRouteWithChildren =
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AgentsRoute: AgentsRoute,
   AnalyticsRoute: AnalyticsRoute,
   CategoriesRoute: CategoriesRoute,
   CustomersRoute: CustomersRoute,
@@ -353,6 +394,7 @@ const rootRouteChildren: RootRouteChildren = {
   ExportRoute: ExportRoute,
   InboxRoute: InboxRoute,
   KnowledgeRoute: KnowledgeRoute,
+  LoginRoute: LoginRoute,
   PipelineRoute: PipelineRoute,
   ProfileRoute: ProfileRoute,
   RulesRoute: RulesRoute,

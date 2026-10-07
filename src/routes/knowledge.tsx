@@ -1,1 +1,2 @@
-import { createFileRoute } from '@tanstack/react-router'; import { Knowledge } from '@/components/tenderpro/pages'; export const Route=createFileRoute('/knowledge')({component:Knowledge});
+import { createFileRoute, redirect } from '@tanstack/react-router';
+export const Route=createFileRoute('/knowledge')({beforeLoad:()=>{throw redirect({to:'/tenders'});}});

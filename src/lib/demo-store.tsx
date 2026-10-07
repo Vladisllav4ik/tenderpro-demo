@@ -1,3 +1,5 @@
+import { useAccount, accountKey, migrateAccountStorage } from "./account";
+import { canonicalTender } from "./tender-model";
 import {
   createContext,
   useContext,
@@ -49,7 +51,7 @@ type DemoState = {
   knowledge: typeof initialKnowledge;
 };
 const initial: DemoState = {
-  tenders: seed.map((t) => normalizeTender(t)),
+  tenders: seed.map((t) => canonicalTender(normalizeTender(t))),
   rules: [
     { name: "DONGFENG або XCMG", weight: 25, enabled: true },
     { name: "Точна товарна група", weight: 20, enabled: true },
@@ -94,7 +96,7 @@ function migrate(raw: unknown): DemoState {
     if (!tenders.some((t) => t.id === old.id))
       tenders.push({ ...seed[0], ...old });
   return {
-    tenders: tenders.map((t) => normalizeTender(t)),
+    tenders: tenders.map((t) => canonicalTender(normalizeTender(t))),
     rules: saved.rules ?? initial.rules,
     pipeline: saved.pipeline ?? {},
     settings: { ...initial.settings, ...saved.settings },
@@ -102,6 +104,8 @@ function migrate(raw: unknown): DemoState {
   };
 }
 export function DemoProvider({ children }: { children: ReactNode }) {
+  const account = useAccount();
+  const storageKey = accountKey(account?.id ?? "guest", "tenders");
   const [state, setInternalState] = useState(initial);
   const stateRef = useRef(state);
   stateRef.current = state;
@@ -115,8 +119,10 @@ export function DemoProvider({ children }: { children: ReactNode }) {
         return {
           ...next,
           tenders: next.tenders.map((t) =>
-            recalculateTender(
-              known.has(t.id) ? normalizeTender(t) : newTender(t),
+            canonicalTender(
+              recalculateTender(
+                known.has(t.id) ? normalizeTender(t) : newTender(t),
+              ),
             ),
           ),
         };
@@ -126,7 +132,8 @@ export function DemoProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
   useEffect(() => {
     try {
-      const value = localStorage.getItem("tenderpro-demo");
+      migrateAccountStorage(account?.id ?? "guest");
+      const value = localStorage.getItem(storageKey);
       if (value) setInternalState(migrate(JSON.parse(value)));
     } catch {}
     setReady(true);
@@ -134,7 +141,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (ready) {
       try {
-        localStorage.setItem("tenderpro-demo", JSON.stringify(state));
+        localStorage.setItem(storageKey, JSON.stringify(state));
       } catch {}
     }
   }, [state, ready]);
@@ -149,7 +156,10 @@ export function DemoProvider({ children }: { children: ReactNode }) {
           : time,
       );
       setInternalState((s) => {
-        const tenders = s.tenders.map((t) => recalculateTender(t, time));
+        const tenders = s.tenders.map((t) => {
+          const next = recalculateTender(t, time);
+          return next === t ? t : canonicalTender(next);
+        });
         return tenders.some((t, i) => t !== s.tenders[i])
           ? { ...s, tenders }
           : s;
@@ -178,13 +188,15 @@ export function DemoProvider({ children }: { children: ReactNode }) {
     const next = {
       ...current,
       tenders: current.tenders.map((t) =>
-        t.id === id ? applyComment(t, comment, new Date(), validDelay) : t,
+        t.id === id
+          ? canonicalTender(applyComment(t, comment, new Date(), validDelay))
+          : t,
       ),
     };
     stateRef.current = next;
     setInternalState(next);
     try {
-      localStorage.setItem("tenderpro-demo", JSON.stringify(next));
+      localStorage.setItem(storageKey, JSON.stringify(next));
     } catch {}
   };
   const setCommentColor = (

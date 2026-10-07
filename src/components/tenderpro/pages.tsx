@@ -101,8 +101,8 @@ import {
   kyivToday,
 } from "@/lib/tender-workflow";
 import { TenderWorksheet } from "./tender-worksheet";
-import { categoryLabel } from "@/lib/worksheet-model";
-import { detailFlow } from "@/lib/tender-detail";
+import { categoryLabel, matchesRelevance } from "@/lib/worksheet-model";
+import { tenderFlow } from "@/lib/tender-model";
 import { useDemo } from "@/lib/demo-store";
 
 export function Dashboard() {
@@ -715,6 +715,7 @@ export function Tenders() {
       budget: "all",
       date: "all",
       status: "all",
+      relevance: "active",
     },
     (v) =>
       !!v &&
@@ -730,6 +731,7 @@ export function Tenders() {
   );
   const resolvedRange = resolveRange(dataRange, state.tenders, now);
   const { q, priority, category, budget, date, status } = filtersState;
+  const relevance = filtersState.relevance ?? "active";
   const setFilter = (key: keyof typeof filtersState) => (value: string) =>
     setFiltersState((s) => ({ ...s, [key]: value }));
   const setQ = setFilter("q"),
@@ -737,12 +739,14 @@ export function Tenders() {
     setCategory = setFilter("category"),
     setBudget = setFilter("budget"),
     setDate = setFilter("date"),
-    setStatus = setFilter("status");
+    setStatus = setFilter("status"),
+    setRelevance = setFilter("relevance");
   const items = useMemo(
     () =>
       state.tenders
         .filter(
           (t) =>
+            matchesRelevance(t, relevance) &&
             (priority === "all" || t.priority === priority) &&
             (category === "all" || categoryLabel(t) === category) &&
             (budget === "all" ||
@@ -768,6 +772,7 @@ export function Tenders() {
       budget,
       date,
       status,
+      relevance,
       resolvedRange.from,
       resolvedRange.to,
       now,
@@ -779,13 +784,24 @@ export function Tenders() {
       total={state.tenders.length}
       query={q}
       onQueryChange={setQ}
-      details={(t) => detailFlow(t, specs, documents)}
+      details={(t) => tenderFlow(t)}
       dataRange={dataRange}
       resolvedRange={resolvedRange}
       onRangeChange={setDataRange}
       filters={
         <div className="sheet-filters">
-          {" "}
+          <Select value={relevance} onValueChange={setRelevance}>
+            <SelectTrigger aria-label="Релевантність">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="active">
+                Профільні / ще не оброблені
+              </SelectItem>
+              <SelectItem value="all">Усі, включно з відсіяними</SelectItem>
+              <SelectItem value="rejected">Відсіяні mock-фільтром</SelectItem>
+            </SelectContent>
+          </Select>{" "}
           <Select value={priority} onValueChange={setPriority}>
             <SelectTrigger>
               <SelectValue />
@@ -808,6 +824,8 @@ export function Tenders() {
                 "Запчастини",
                 "Будівництво",
                 "Обладнання",
+                "Матеріали",
+                "Паливо",
                 "Послуги",
                 "Інше",
               ].map((x) => (
@@ -1055,142 +1073,6 @@ function WorkingView({ items }: { items: Tender[] }) {
   );
 }
 
-const specs = [
-  {
-    code: "LF9009",
-    brand: "Fleetguard",
-    name: "Масляний фільтр",
-    qty: 120,
-    match: "Точний",
-    status: "Підтверджено",
-  },
-  {
-    code: "FS19532",
-    brand: "Fleetguard",
-    name: "Паливний сепаратор",
-    qty: 80,
-    match: "Точний",
-    status: "Підтверджено",
-  },
-  {
-    code: "AF26395",
-    brand: "Fleetguard",
-    name: "Повітряний фільтр",
-    qty: 60,
-    match: "Аналог",
-    status: "На перевірці",
-  },
-  {
-    code: "SO10068",
-    brand: "HIFI",
-    name: "Масляний фільтр",
-    qty: 90,
-    match: "Точний",
-    status: "Підтверджено",
-  },
-  {
-    code: "P550388",
-    brand: "Donaldson",
-    name: "Паливний фільтр",
-    qty: 70,
-    match: "Аналог",
-    status: "На перевірці",
-  },
-  {
-    code: "FF5488",
-    brand: "Fleetguard",
-    name: "Паливний фільтр",
-    qty: 100,
-    match: "Точний",
-    status: "Підтверджено",
-  },
-  {
-    code: "HF6555",
-    brand: "Baldwin",
-    name: "Гідравлічний фільтр",
-    qty: 40,
-    match: "Потребує перевірки",
-    status: "Потребує уточнення",
-  },
-  {
-    code: "LF3970",
-    brand: "Fleetguard",
-    name: "Масляний фільтр",
-    qty: 65,
-    match: "Точний",
-    status: "Підтверджено",
-  },
-] as const;
-
-const documents = [
-  {
-    name: "Технічне завдання.pdf",
-    kind: "pdf",
-    facts: [
-      "8 позицій із точними каталожними номерами",
-      "Еквіваленти дозволені з підтвердженням сумісності",
-      "Поставка — до 30 календарних днів",
-    ],
-    sources: ["Джерело: стор. 3, п. 2.1", "Джерело: стор. 5, п. 4.2"],
-    text: "Предмет закупівлі: фільтруючі елементи до тепловозів. Учасник постачає продукцію за каталожними номерами LF9009, FS19532, AF26395, SO10068, P550388, FF5488, HF6555 та LF3970. Допускається еквівалент за умови документального підтвердження сумісності. Строк поставки — 30 календарних днів.",
-  },
-  {
-    name: "Специфікація.xlsx",
-    kind: "sheet",
-    facts: [
-      "8 товарних позицій",
-      "Загальна кількість — 625 шт",
-      "4 бренди у вихідній специфікації",
-    ],
-    sources: ["Джерело: арк. 1, рядки 2–9"],
-    text: "",
-  },
-  {
-    name: "Проєкт договору.docx",
-    kind: "doc",
-    facts: [
-      "Післяплата — 30 банківських днів",
-      "Поставка — 30 календарних днів",
-      "Гарантія товару — 12 місяців",
-      "Штраф — 0,5% за день прострочення (DEMO)",
-    ],
-    sources: ["Джерело: стор. 6, п. 5.4", "Джерело: стор. 8, п. 7.2"],
-    text: "Оплата здійснюється протягом 30 банківських днів після приймання товару. Постачальник зобов’язаний поставити товар протягом 30 календарних днів. Гарантійний строк — 12 місяців. За прострочення нараховується штраф 0,5% вартості непоставленого товару за кожний день (DEMO).",
-  },
-  {
-    name: "Кваліфікаційні вимоги.pdf",
-    kind: "pdf",
-    facts: [
-      "Не менше 2 аналогічних договорів",
-      "Фінансова звітність за останній період",
-      "Документи про повноваження підписанта",
-    ],
-    sources: ["Джерело: стор. 17, п. 4.3", "Джерело: стор. 18, п. 4.6"],
-    text: "Учасник подає довідку та підтвердження виконання щонайменше двох аналогічних договорів, фінансову звітність за останній звітний період, а також наказ або довіреність, що підтверджує повноваження підписанта.",
-  },
-  {
-    name: "Цінова форма.xlsx",
-    kind: "price",
-    facts: [
-      "Ціни подаються без ПДВ і з ПДВ",
-      "Сума розраховується за кожною позицією",
-      "Формат і порядок колонок змінювати не можна",
-    ],
-    sources: ["Джерело: арк. 1, колонки A–F"],
-    text: "",
-  },
-  {
-    name: "Додаток 4.pdf",
-    kind: "pdf",
-    facts: [
-      "Потрібен авторизаційний лист",
-      "Для еквівалентів — підтвердження сумісності",
-      "Лист має містити номер закупівлі",
-    ],
-    sources: ["Джерело: стор. 21, п. 2", "Джерело: стор. 21, п. 4"],
-    text: "Для товару, що пропонується як еквівалент, учасник надає авторизаційний лист виробника або офіційного представника та таблицю підтвердження технічної сумісності із зазначенням номера закупівлі.",
-  },
-] as const;
 export function TenderDetail({ id }: { id: string }) {
   const { state, viewTender, ready } = useDemo();
   useEffect(() => {
@@ -1198,7 +1080,7 @@ export function TenderDetail({ id }: { id: string }) {
   }, [id, ready, viewTender]);
   const tender = state.tenders.find((t) => t.id === id);
   return tender ? (
-    <TenderCard tender={tender} flow={detailFlow(tender, specs, documents)} />
+    <TenderCard tender={tender} flow={tenderFlow(tender)} />
   ) : (
     <Empty text="Тендер не знайдено" />
   );
@@ -1220,7 +1102,7 @@ function Info({ rows }: { rows: (string | number)[][] }) {
   );
 }
 function SpecPreview({
-  parts = specs,
+  parts = [],
 }: {
   parts?: readonly import("@/lib/tender-detail").PartSpec[];
 }) {
@@ -1252,7 +1134,7 @@ function SpecPreview({
   );
 }
 function PricePreview({
-  parts = specs,
+  parts = [],
 }: {
   parts?: readonly import("@/lib/tender-detail").PartSpec[];
 }) {

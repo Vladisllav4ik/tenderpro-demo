@@ -26,6 +26,7 @@ import {
 } from "@/lib/tender-workflow";
 import { prozorroLink } from "@/lib/worksheet-model";
 import type { DetailFlow, DetailDocument } from "@/lib/tender-detail";
+import { periodRange } from "@/lib/tender-period";
 
 const tabs = ["Огляд", "AI аналіз", "Документи", "Вимоги", "Історія"];
 export function TenderCard({
@@ -100,8 +101,15 @@ export function TenderCard({
     ["ID", t.id],
     ["Замовник", t.customer],
     ["Категорія", t.category],
-    ["CPV", "Не зазначено в демо-джерелі"],
+    ["CPV", t.cpv ?? "-"],
+    ["Предмет закупівлі", t.subject ?? "-"],
     ["Сума", money(t.budget)],
+    ["Кількість", t.quantity ?? "-"],
+    ["Од. виміру", t.unit ?? "-"],
+    ["Ціна за одиницю", t.unitPrice === undefined ? "-" : money(t.unitPrice)],
+    ["Аукціон", periodRange(t.auctionPeriod)],
+    ["Поставка", periodRange(t.deliveryPeriod)],
+    ["Адреса", t.address ?? "-"],
     [
       "Дата публікації",
       `${fullDate(period.start)}${t.publicationDateSource === "tender-id" ? " · з ID тендера" : ""}`,
@@ -199,11 +207,11 @@ export function TenderCard({
             <p className="tender-card-summary">{flow.summary}</p>
             <div className="tender-ai-metrics">
               <strong>
-                {t.score}
+                {t.analysisPending || t.aiScore === null ? "-" : t.score}
                 <small>/100 · AI score</small>
               </strong>
               <strong>
-                {t.priority}
+                {t.analysisPending || t.aiScore === null ? "-" : t.priority}
                 <small>Пріоритет</small>
               </strong>
             </div>
@@ -289,6 +297,7 @@ export function TenderCard({
         <TabsContent value="Вимоги">
           <section className="tender-card-section">
             <h2>Структуровані вимоги</h2>
+            <h3>Технічні вимоги</h3>
             {flow.parts.length ? (
               <div className="tender-requirement-scroll">
                 <table className="tender-requirements">
@@ -332,13 +341,26 @@ export function TenderCard({
                 ))}
               </dl>
             )}
+            {flow.parts.length > 0 && (
+              <SummaryList
+                title="Додаткові технічні вимоги"
+                items={(t.technicalRequirements ?? []).filter(
+                  (text) =>
+                    !flow.parts.some((part) => text.includes(part.code)),
+                )}
+              />
+            )}
             <SummaryList
-              title="Документальне підтвердження та авторизація"
-              items={flow.requirements}
+              title="Кваліфікаційні вимоги"
+              items={t.qualificationRequirements ?? []}
+            />
+            <SummaryList
+              title="Особливі вимоги"
+              items={t.specialRequirements ?? []}
             />
             <p className="tender-card-muted">
-              Вимоги взято з поточного демо-набору; невідомі параметри
-              потребують уточнення.
+              Вимоги взято з поточного тендера; невідомі параметри потребують
+              уточнення.
             </p>
           </section>
         </TabsContent>

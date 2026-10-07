@@ -1,1 +1,2 @@
-import { createFileRoute } from '@tanstack/react-router'; import { Pipeline } from '@/components/tenderpro/pages'; export const Route=createFileRoute('/pipeline')({component:Pipeline});
+import { createFileRoute, redirect } from '@tanstack/react-router';
+export const Route=createFileRoute('/pipeline')({beforeLoad:()=>{throw redirect({to:'/tenders'});}});

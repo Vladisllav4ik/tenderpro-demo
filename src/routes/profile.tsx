@@ -1,3 +1,2 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { ProfilePage } from "@/components/tenderpro/pages";
-export const Route = createFileRoute("/profile")({ component: ProfilePage });
+import { createFileRoute, redirect } from '@tanstack/react-router';
+export const Route=createFileRoute('/profile')({beforeLoad:()=>{throw redirect({to:'/settings'});}});
