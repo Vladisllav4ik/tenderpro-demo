@@ -129,7 +129,7 @@ export function filterInputFromTender(t: Tender): FilterTestInput {
     })),
     documentTexts: (t.documents ?? []).map((d) => ({
       name: d.name,
-      text: d.text,
+      text: d.text.slice(0,30000),
       facts: [...d.facts],
     })),
     submissionPeriod: dates(t.submissionPeriod),

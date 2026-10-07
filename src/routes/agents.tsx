@@ -53,8 +53,8 @@ function AgentAdmin() {
       <p>
         ADMIN · Collector → Classifier → Analyzer → Lifecycle. Collector: mock /
         data-source; Classifier і Analyzer: mock / OpenAI; Lifecycle: rules /
-        mock / OpenAI / hybrid. Один тендер за запуск, результати лише preview /
-        staging. Prozorro connector ще не підключено.
+        mock / OpenAI / hybrid. Excel crash-test отримує Prozorro data і
+        документи перед Analyzer; окремі тести агентів показують preview.
       </p>
       {!initial.journalAvailable && (
         <p role="alert">Локальний журнал недоступний.</p>

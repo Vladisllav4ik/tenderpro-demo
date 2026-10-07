@@ -8,7 +8,15 @@ import {
   type PipelineRecord,
 } from "./system-contracts.ts";
 const normalize = (v: string) =>
-  v.toLocaleLowerCase("uk-UA").replace(/\s+/g, " ").trim();
+  v
+    .toLocaleLowerCase("uk-UA")
+    .replace(/[’ʼ]/g, "'")
+    .replace(/[‐‑–—]/g, "-")
+    .replace(/\u00ad/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/^["«“]+|["»”]+$/g, "")
+    .trim();
 export function mergeCrashResult(
   raw: Tender,
   pipeline: PipelineRecord,
@@ -99,6 +107,34 @@ export function mergeCrashResult(
       normalize(sourceText).includes(normalize(value))
     );
   };
+  const evidenceFor = (field: string, value: string) =>
+    agent3Result?.evidence?.find((e) => {
+      if (
+        e.field !== field ||
+        normalize(e.value) !== normalize(value) ||
+        e.confidence < 0.5 ||
+        !e.quote.trim()
+      )
+        return false;
+      const source =
+        e.sourceType === "document"
+          ? raw.documents?.find(
+              (d) => d.documentId === e.sourceId && d.parseStatus === "parsed",
+            )?.text
+          : e.sourceType === "prozorro"
+            ? JSON.stringify({
+                items: raw.sourceItems,
+                title: raw.officialTitle,
+                description: raw.description,
+              })
+            : sourceText;
+      // Extractive proof, not a plausible paraphrase: both quote and value must occur in the cited source.
+      return (
+        !!source &&
+        normalize(source).includes(normalize(e.quote)) &&
+        normalize(e.quote).includes(normalize(value))
+      );
+    });
   const accept = (field: string, value: unknown) => {
     if (
       value == null ||
@@ -117,7 +153,27 @@ export function mergeCrashResult(
         warnings.push(`${field}: непідтверджені значення не застосовано.`);
       if (verified.length) {
         Object.assign(final, { [field]: verified });
-        provenance[field] = { source: "agent3", evidence: verified.join("\n") };
+        const proof = evidenceFor(field, verified[0]);
+        provenance[field] = {
+          source: proof?.sourceType ?? "agent3",
+          evidence: verified.join("\n"),
+          ...(proof
+            ? { sourceId: proof.sourceId, confidence: proof.confidence }
+            : {}),
+        };
+        for (const v of verified) {
+          const e = evidenceFor(field, v);
+          const doc = raw.documents?.find((d) => d.text.includes(v));
+          provenance[`${field}:${v}`] = {
+            source: e?.sourceType ?? (doc ? "document" : "import"),
+            evidence: e?.quote ?? v,
+            ...(e
+              ? { sourceId: e.sourceId, confidence: e.confidence }
+              : doc?.documentId
+                ? { sourceId: doc.documentId }
+                : {}),
+          };
+        }
       }
     } else if (grounded(field, value)) {
       Object.assign(final, { [field]: value });
@@ -147,6 +203,18 @@ export function mergeCrashResult(
   }
   // Mock can exercise plumbing, but its generated summaries/decisions are not factual AI conclusions.
   if (agent3Result && a?.provider === "openai") {
+    const extra = (
+      [
+        "warranties",
+        "certificates",
+        "licenses",
+        "authorizationRequirements",
+        "equivalentConditions",
+        "configuration",
+        "technicalCharacteristics",
+      ] as const
+    ).flatMap((k) => (agent3Result[k] ?? []).filter((v) => grounded(k, v)));
+    // Keep the UI's existing three requirement sections; preserve specialized fields in Agent 3 result/evidence.
     for (const key of [
       "quantity",
       "unit",
@@ -159,6 +227,10 @@ export function mergeCrashResult(
       "aiSummary",
     ] as const)
       accept(key, agent3Result[key]);
+    if (!locked.has("specialRequirements") && extra.length)
+      accept("specialRequirements", [
+        ...new Set([...(final.specialRequirements ?? []), ...extra]),
+      ]);
     accept("address", agent3Result.deliveryAddress);
     if (
       !locked.has("deliveryPeriod") &&
@@ -172,6 +244,29 @@ export function mergeCrashResult(
       };
     }
     // Source totals/dates/title, models/items and actual document lists stay immutable.
+    if (final.aiSummary === "-") {
+      // An extractive digest of already verified quotes is safe; do not accept an ungrounded LLM paraphrase.
+      const excerpts = [
+        ...(final.technicalRequirements ?? []).slice(0, 2),
+        ...(final.qualificationRequirements ?? []).slice(0, 1),
+        ...(final.specialRequirements ?? []).slice(0, 1),
+      ].filter((value) =>
+        raw.documents?.some(
+          (d) =>
+            d.parseStatus === "parsed" &&
+            normalize(d.text).includes(normalize(value)),
+        ),
+      );
+      if (excerpts.length) {
+        final.aiSummary = [raw.officialTitle ?? raw.title, ...excerpts].join(
+          "\n",
+        );
+        provenance["aiSummary"] = {
+          source: "document",
+          evidence: excerpts.join("\n"),
+        };
+      }
+    }
   }
   if (agent4Result) {
     const terminal = [

@@ -58,6 +58,21 @@ export const analyzerInputSchema = z
         qualificationRequirements: list,
       })
       .strict(),
+    sourceData: z.record(z.unknown()).optional(),
+    documentMetadata: z
+      .array(
+        z
+          .object({
+            documentId: z.string(),
+            name: z.string(),
+            mimeType: nullableText,
+            sourceUrl: nullableText,
+            parseStatus: z.string(),
+            downloadStatus: z.string(),
+          })
+          .strict(),
+      )
+      .optional(),
   })
   .strict();
 export type AnalyzerInput = z.infer<typeof analyzerInputSchema>;
@@ -79,6 +94,28 @@ export const analyzerResultSchema = z
     requiredDocuments: list,
     risks: list,
     aiSummary: text,
+    warranties: list.optional(),
+    certificates: list.optional(),
+    licenses: list.optional(),
+    authorizationRequirements: list.optional(),
+    equivalentConditions: list.optional(),
+    configuration: list.optional(),
+    technicalCharacteristics: list.optional(),
+    evidence: z
+      .array(
+        z
+          .object({
+            field: z.string().max(100),
+            value: z.string().max(4000),
+            sourceType: z.enum(["import", "prozorro", "document"]),
+            sourceId: z.string().max(300),
+            quote: z.string().max(4000),
+            confidence: z.number().min(0).max(1),
+          })
+          .strict(),
+      )
+      .max(200)
+      .optional(),
   })
   .strict();
 export type AnalyzerResult = z.infer<typeof analyzerResultSchema>;
@@ -236,8 +273,14 @@ export function analyzerInputFromTender(
   t: Tender,
   classification: AnalyzerInput["classification"],
 ): AnalyzerInput {
+  const base = filterInputFromTender(t);
+  base.documentTexts = [];
+  const parsed = (t.documents ?? []).filter(
+    (d) => d.parseStatus === undefined || d.parseStatus === "parsed",
+  );
+  const limit = Math.min(18000, Math.floor(90000 / Math.max(parsed.length, 1)));
   return {
-    base: filterInputFromTender(t),
+    base,
     classification,
     metadata: {},
     knownFields: {
@@ -246,13 +289,13 @@ export function analyzerInputFromTender(
       technicalRequirements: t.technicalRequirements ?? [],
       qualificationRequirements: t.qualificationRequirements ?? [],
     },
-    documents: (t.documents ?? []).map((d, i) => ({
-      documentId: `${t.id}:${i}`,
+    documents: parsed.map((d, i) => ({
+      documentId: d.documentId ?? `${t.id}:${i}`,
       name: d.name,
-      mimeType: null,
-      sourceUrl: null,
-      extractedText: d.text,
-      metadata: { kind: d.kind },
+      mimeType: d.mimeType ?? null,
+      sourceUrl: d.url ?? null,
+      extractedText: d.text.slice(0, limit),
+      metadata: { kind: d.kind, excerptTruncated: d.text.length > limit },
     })),
   };
 }
@@ -284,6 +327,24 @@ export const analyzerOutputJSONSchema = strictObject({
   requiredDocuments: strings,
   risks: strings,
   aiSummary: string,
+  warranties: strings,
+  certificates: strings,
+  licenses: strings,
+  authorizationRequirements: strings,
+  equivalentConditions: strings,
+  configuration: strings,
+  technicalCharacteristics: strings,
+  evidence: {
+    type: "array",
+    items: strictObject({
+      field: string,
+      value: string,
+      sourceType: { type: "string", enum: ["import", "prozorro", "document"] },
+      sourceId: string,
+      quote: string,
+      confidence: { type: "number", minimum: 0, maximum: 1 },
+    }),
+  },
 });
 export const statusOutputJSONSchema = strictObject({
   status: { type: "string", enum: [...lifecycleStatuses] },

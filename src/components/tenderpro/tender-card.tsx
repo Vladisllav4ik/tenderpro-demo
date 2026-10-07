@@ -102,6 +102,8 @@ export function TenderCard({
     ["Замовник", t.customer],
     ["Категорія", t.category],
     ["CPV", t.cpv ?? "-"],
+    ["Офіційна назва", t.officialTitle ?? "-"],
+    ["Статус Prozorro", t.prozorroStatus ?? "-"],
     ["Предмет закупівлі", t.subject ?? "-"],
     ["Сума", money(t.budget, t.currency)],
     ["Кількість", t.quantity ?? "-"],
@@ -246,17 +248,19 @@ export function TenderCard({
                       <p>
                         {doc.name.split(".").at(-1)?.toUpperCase()} · витяг{" "}
                         {new Blob([textFor(doc)]).size.toLocaleString("uk-UA")}{" "}
-                        байт · {fullDate(period.start)}
+                        байт ·{" "}
+                        {doc.dateModified ? fullDate(doc.dateModified) : "-"}
                       </p>
                       <p>
-                        {state?.downloaded
-                          ? "Витяг завантажено"
-                          : "Витяг не завантажено"}{" "}
-                        ·{" "}
-                        {state?.parsed
-                          ? "AI parsed ✓"
-                          : "Текст джерела · AI аналіз не відкрито"}
+                        Download: {doc.downloadStatus ?? "unknown"} · Parse:{" "}
+                        {doc.parseStatus ?? "unknown"}
                       </p>
+                      {doc.error && <p>{doc.error}</p>}
+                      {doc.url && (
+                        <a href={doc.url} target="_blank" rel="noreferrer">
+                          Оригінал документа ↗
+                        </a>
+                      )}
                     </div>
                     <div className="tender-document-actions">
                       <Button

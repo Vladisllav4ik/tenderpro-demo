@@ -4,6 +4,7 @@ import {
   getImportedCrash,
   rerunCrashTenders,
   clearCrashTenders,
+  rerunPreparedTender,
 } from "@/lib/agents/client";
 import type { CrashRecord } from "@/lib/agents/crash-contracts";
 import type { AgentConfig } from "@/lib/agents/contracts";
@@ -19,6 +20,7 @@ export function CrashTestPanel({
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   const { refreshTenders } = useDemo();
+  const processing = records.some((r) => r.processing);
   const read = async () => {
     setRecords(await getImportedCrash());
   };
@@ -33,13 +35,13 @@ export function CrashTestPanel({
           if (active) setError("Crash-test storage недоступний.");
         });
     void check();
-    const timer = setInterval(check, 2500);
+    // Source snapshots contain document text; avoid polling megabytes while idle.
+    const timer = setInterval(check, processing ? 2500 : 30000);
     return () => {
       active = false;
       clearInterval(timer);
     };
-  }, []);
-  const processing = records.some((r) => r.processing);
+  }, [processing]);
   async function action(work: () => Promise<unknown>) {
     setBusy(true);
     setError("");
@@ -119,7 +121,7 @@ export function CrashTestPanel({
           className="rounded bg-primary px-4 py-2 text-primary-foreground"
           onClick={() => action(() => rerunCrashTenders())}
         >
-          Запустити pipeline для імпортованих
+          Повторити pipeline для всіх crash-test тендерів
         </button>
         <button
           disabled={busy || processing || !records.length}
@@ -159,6 +161,71 @@ export function CrashTestPanel({
             {r.rawImportedData.rawImport?.fileName ?? "—"} / рядок{" "}
             {r.rawImportedData.rawImport?.row ?? "—"}
           </summary>
+          <button
+            className="my-2 rounded border px-3 py-2"
+            disabled={busy || processing}
+            onClick={() =>
+              action(() =>
+                rerunPreparedTender({ data: { recordId: r.recordId } }),
+              )
+            }
+          >
+            Повторити Agent 2 → Agent 3
+          </button>
+          <p className="text-sm">
+            Agent 2: Prozorro fetched{" "}
+            {r.preparation?.prozorroFetched ? "yes" : "no"} · base fields{" "}
+            {r.preparation?.baseFieldsCount ?? 0} · documents found{" "}
+            {r.preparation?.documents.length ?? 0} / downloaded{" "}
+            {r.preparation?.documents.filter(
+              (d) => d.downloadStatus === "downloaded",
+            ).length ?? 0}{" "}
+            / parsed{" "}
+            {r.preparation?.documents.filter((d) => d.parseStatus === "parsed")
+              .length ?? 0}
+          </p>
+          <p className="text-sm">
+            Flags: baseDataReady{" "}
+            {String(r.preparation?.flags.baseDataReady ?? false)} ·
+            documentsFetched{" "}
+            {String(r.preparation?.flags.documentsFetched ?? false)} ·
+            documentsParsed{" "}
+            {String(r.preparation?.flags.documentsParsed ?? false)} ·
+            documentsAvailable{" "}
+            {String(r.preparation?.flags.documentsAvailable ?? "unknown")} ·
+            agent2Completed{" "}
+            {String(r.preparation?.flags.agent2Completed ?? false)}
+          </p>
+          <p className="text-sm">
+            Agent 3: started {r.agent3Debug?.started ? "yes" : "no"} · documents
+            consumed {r.agent3Debug?.documentsConsumed ?? 0} · extracted fields{" "}
+            {r.agent3Debug?.extractedFieldsCount ?? 0}
+          </p>
+          <p className="text-sm">
+            Agent 4: {r.agent4Result?.status ?? "—"} ·{" "}
+            {r.agent4Result?.reason ?? "—"}
+          </p>
+          {[
+            ...(r.preparation?.errors ?? []),
+            ...(r.agent3Debug?.errors ?? []),
+          ].map((e, i) => (
+            <p key={i} className="text-sm">
+              {e}
+            </p>
+          ))}
+          <details>
+            <summary>Raw Prozorro / document registry</summary>
+            <pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words text-xs">
+              {JSON.stringify(
+                {
+                  rawProzorroData: r.preparation?.rawProzorroData ?? null,
+                  documents: r.preparation?.documents ?? [],
+                },
+                null,
+                2,
+              )}
+            </pre>
+          </details>
           {r.pipeline?.stages.map((s) => (
             <p key={s.agentId} className="text-sm">
               {s.agentId} · {s.status} ·{" "}

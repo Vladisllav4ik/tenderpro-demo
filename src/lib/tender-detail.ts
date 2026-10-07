@@ -1,6 +1,14 @@
 import type { Tender } from "./demo-data";
 
 export type DetailDocument = {
+  documentId?: string;
+  url?: string;
+  mimeType?: string | null;
+  datePublished?: string | null;
+  dateModified?: string | null;
+  downloadStatus?: "pending" | "downloaded" | "failed";
+  parseStatus?: "pending" | "parsed" | "failed";
+  error?: string | null;
   name: string;
   kind: string;
   facts: readonly string[];

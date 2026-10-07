@@ -13,6 +13,11 @@ export const importCrashTenders = createServerFn({ method: "POST" })
 export const rerunCrashTenders = createServerFn({ method: "POST" }).handler(
   async () => (await import("./crash-execution.server")).rerunImportedCrash(),
 );
+export const rerunPreparedTender = createServerFn({ method: "POST" })
+  .validator((data: { recordId: string }) => data)
+  .handler(async ({ data }) =>
+    (await import("./crash-execution.server")).rerunOnePrepared(data),
+  );
 export const clearCrashTenders = createServerFn({ method: "POST" }).handler(
   async () => (await import("./crash-execution.server")).clearImportedCrash(),
 );

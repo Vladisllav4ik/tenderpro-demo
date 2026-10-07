@@ -21,7 +21,7 @@ export function sanitizeSnapshot<T>(value: T, extraSecrets: string[] = []): T {
       return Object.fromEntries(
         Object.entries(item).map(([key, v]) => [
           key,
-          /^(?:token|key)$|password|secret|authorization|cookie|(?:api|private)[_-]?key|access[_-]?token|refresh[_-]?token/i.test(
+          /^(?:token|key|authorization|cookie|set-cookie)$|password|secret|(?:api|private)[_-]?key|access[_-]?token|refresh[_-]?token/i.test(
             key,
           )
             ? "[REDACTED]"

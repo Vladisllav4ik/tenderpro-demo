@@ -6,6 +6,13 @@ import type {
   PipelineRecord,
 } from "./system-contracts.ts";
 export type CrashRecord = {
+  preparation?: import("./source-contracts.ts").Agent2Preparation;
+  agent3Debug?: {
+    started: boolean;
+    documentsConsumed: number;
+    extractedFieldsCount: number;
+    errors: string[];
+  };
   recordId: string;
   batchId: string;
   accountId: string;

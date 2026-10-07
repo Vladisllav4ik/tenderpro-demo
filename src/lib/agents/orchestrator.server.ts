@@ -46,7 +46,12 @@ export class TenderOrchestrator {
     settings: PipelineSettings = defaultPipelineSettings,
     only?: AgentId,
     lifecycleInput?: LifecycleInput,
-    options: { excelImport?: boolean; resume?: PipelineRecord } = {},
+    options: {
+      excelImport?: boolean;
+      resume?: PipelineRecord;
+      preparation?: import("./source-contracts.ts").Agent2Preparation;
+      skipLifecycle?: boolean;
+    } = {},
   ): Promise<PipelineRecord> {
     const now = this.dependencies.now ?? (() => new Date());
     const startedAt = now().toISOString();
@@ -228,6 +233,14 @@ export class TenderOrchestrator {
       p.stages.push({ agentId: id, status: "skipped", reason });
     try {
       const thresholds = pipelineSettingsSchema.parse(settings);
+      if (
+        options.preparation &&
+        (!options.preparation.flags.agent2Completed ||
+          !options.preparation.flags.baseDataReady)
+      )
+        throw new AgentFailure(
+          "Agent 2 preparation не завершено; Agent 3 заблоковано.",
+        );
       filterInputSchema.parse(filterInputFromTender(tender));
       await this.dependencies.pipelines.save(p);
       if (only === "status") {
@@ -302,6 +315,7 @@ export class TenderOrchestrator {
         if (only !== "collector") {
           await checkpoint("CLASSIFICATION_PENDING");
           const input = filterInputFromTender(baseTender);
+          if (options.preparation) input.documentTexts = [];
           const classification = filterResultSchema.parse(
             await stage("filter", input, async (sink) => {
               const r = await executeFilterTest(
@@ -336,25 +350,79 @@ export class TenderOrchestrator {
           } else {
             await checkpoint("CLASSIFIED");
             if (only !== "filter") {
-              await checkpoint("ANALYSIS_PENDING");
-              const input = analyzerInputFromTender(baseTender, classification);
-              input.metadata = sourceMetadata;
-              await stage("detail", input, async (sink) => {
-                const r = await new AnalyzerService().execute(
-                  input,
-                  config("detail"),
-                  accountId,
-                  sink,
-                  this.dependencies.responses,
+              if (
+                options.preparation &&
+                (!options.preparation.flags.documentsFetched ||
+                  (options.preparation.flags.documentsAvailable &&
+                    !options.preparation.flags.documentsParsed))
+              ) {
+                p.status = "review";
+                await checkpoint("NEEDS_REVIEW");
+                skip(
+                  "detail",
+                  "Документи не отримано або жоден документ не прочитано; Agent 3 заблоковано.",
                 );
-                if (!r.ok) throw new AgentFailure(r.error);
-                return r;
-              });
-              await checkpoint("ANALYZED");
-              await checkpoint("READY");
-              if (!only) {
-                await lifecycle();
-                await checkpoint("MONITORING");
+                skip("status", "Очікуємо готову картку.");
+              } else {
+                await checkpoint("ANALYSIS_PENDING");
+                const input = analyzerInputFromTender(
+                  baseTender,
+                  classification,
+                );
+                input.metadata = sourceMetadata;
+                if (options.preparation) {
+                  const raw = options.preparation.rawProzorroData as Record<
+                    string,
+                    unknown
+                  > | null;
+                  input.sourceData = raw
+                    ? Object.fromEntries(
+                        [
+                          "id",
+                          "tenderID",
+                          "title",
+                          "description",
+                          "status",
+                          "value",
+                          "procuringEntity",
+                          "tenderPeriod",
+                          "auctionPeriod",
+                          "items",
+                          "lots",
+                          "features",
+                        ]
+                          .filter((k) => raw[k] !== undefined)
+                          .map((k) => [k, raw[k]]),
+                      )
+                    : {};
+                  input.documentMetadata = options.preparation.documents.map(
+                    (d) => ({
+                      documentId: d.documentId,
+                      name: d.name,
+                      mimeType: d.mimeType,
+                      sourceUrl: d.url,
+                      parseStatus: d.parseStatus,
+                      downloadStatus: d.downloadStatus,
+                    }),
+                  );
+                }
+                await stage("detail", input, async (sink) => {
+                  const r = await new AnalyzerService().execute(
+                    input,
+                    config("detail"),
+                    accountId,
+                    sink,
+                    this.dependencies.responses,
+                  );
+                  if (!r.ok) throw new AgentFailure(r.error);
+                  return r;
+                });
+                await checkpoint("ANALYZED");
+                await checkpoint("READY");
+                if (!only && !options.skipLifecycle) {
+                  await lifecycle();
+                  await checkpoint("MONITORING");
+                }
               }
             }
           }

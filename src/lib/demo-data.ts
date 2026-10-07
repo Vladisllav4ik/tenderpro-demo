@@ -12,9 +12,15 @@ export type Tender = {
       source:
         "import" | "prozorro" | "document" | "agent2" | "agent3" | "agent4";
       evidence?: string;
+      sourceId?: string;
+      confidence?: number;
     }
   >;
   currency?: string;
+  officialTitle?: string;
+  prozorroStatus?: string;
+  sourceItems?: import("./agents/contracts.ts").JsonValue[];
+  sourceLots?: import("./agents/contracts.ts").JsonValue[];
   subject?: string;
   cpv?: string | null;
   totalAmount?: number;

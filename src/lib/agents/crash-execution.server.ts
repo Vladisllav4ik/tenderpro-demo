@@ -19,6 +19,7 @@ import {
 } from "./system-contracts";
 import { sanitizeSnapshot } from "./snapshots.server";
 import { runningAgentAccounts } from "./execution-lock.server";
+import { Agent2PreparationService } from "./preparation.server";
 let initializing: Promise<void> | undefined;
 export function initializeCrashStorage() {
   if (!initializing)
@@ -46,6 +47,7 @@ const service = () =>
         appendLog(log);
       },
     }),
+    new Agent2PreparationService(),
   );
 function checkModes() {
   const configs = agentRepository.list();
@@ -153,6 +155,30 @@ export async function rerunImportedCrash() {
     runningAgentAccounts.delete(account.id);
   }
 }
+export async function rerunOnePrepared(raw: { recordId: string }) {
+  const account = requireAccount(true);
+  await initializeCrashStorage();
+  if (runningAgentAccounts.size)
+    throw new Error("Дочекайтеся поточного pipeline.");
+  const record = (await crashRepository.list()).find(
+    (r) => r.recordId === raw.recordId,
+  );
+  if (!record) throw new Error("Тендер не знайдено.");
+  const configs = checkModes();
+  runningAgentAccounts.add(account.id);
+  try {
+    await usageJournal.prepare();
+    return await service().run(
+      [record],
+      configs,
+      await localAgentRepositories.settings(),
+      true,
+      true,
+    );
+  } finally {
+    runningAgentAccounts.delete(account.id);
+  }
+}
 export async function clearImportedCrash() {
   requireAccount(true);
   await initializeCrashStorage();
@@ -160,15 +186,17 @@ export async function clearImportedCrash() {
     throw new Error("Дочекайтеся pipeline перед очищенням.");
   runningAgentAccounts.add("crash-clear");
   try {
-  const ids = new Set(
-    (await crashRepository.list()).map((r) => r.rawImportedData.id),
-  );
-  await localAgentRepositories.removeTenderHistory(ids);
-  await usageJournal.removeTenderIds(ids);
-  for (let i = agentLogs.length - 1; i >= 0; i--)
-    if (ids.has(agentLogs[i]!.tenderId ?? "")) agentLogs.splice(i, 1);
-  return { cleared: await crashRepository.clear() };
-  } finally{runningAgentAccounts.delete("crash-clear");}
+    const ids = new Set(
+      (await crashRepository.list()).map((r) => r.rawImportedData.id),
+    );
+    await localAgentRepositories.removeTenderHistory(ids);
+    await usageJournal.removeTenderIds(ids);
+    for (let i = agentLogs.length - 1; i >= 0; i--)
+      if (ids.has(agentLogs[i]!.tenderId ?? "")) agentLogs.splice(i, 1);
+    return { cleared: await crashRepository.clear() };
+  } finally {
+    runningAgentAccounts.delete("crash-clear");
+  }
 }
 export async function updateImportedComment(raw: unknown) {
   const account = requireAccount();
