@@ -56,6 +56,7 @@ export class TenderDocumentService {
     const path = join(this.directory, cacheKey + ".bin");
     try {
       const bytes = await readFile(path);
+      doc.sizeBytes = bytes.length;
       doc.downloadStatus = "downloaded";
       return bytes;
     } catch (e) {
@@ -95,6 +96,7 @@ export class TenderDocumentService {
     await mkdir(this.directory, { recursive: true });
     await writeFile(path, bytes, { mode: 0o600 });
     doc.downloadStatus = "downloaded";
+    doc.sizeBytes = bytes.length;
     return bytes;
   }
   async extractText(
@@ -218,7 +220,7 @@ export class TenderDocumentService {
     return docs;
   }
 }
-async function checkZipSize(bytes: Buffer) {
+export async function checkZipSize(bytes: Buffer) {
   const mod = await import("jszip");
   const zip = await (mod.default ?? mod).loadAsync(bytes);
   let size = 0,

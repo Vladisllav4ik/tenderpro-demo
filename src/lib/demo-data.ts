@@ -17,6 +17,10 @@ export type Tender = {
     }
   >;
   currency?: string;
+  expectedValue?: number | null;
+  vatIncluded?: boolean | null;
+  sourceUrlProzorro?: string;
+  workspaceUrlZakupivli?: string;
   officialTitle?: string;
   prozorroStatus?: string;
   sourceItems?: import("./agents/contracts.ts").JsonValue[];

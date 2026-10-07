@@ -44,10 +44,17 @@ for (const mode of ["compact", "detailed"])
     await roundtrip.xlsx.load(buffer);
     const sheet = roundtrip.worksheets[0];
     const cell = (key, row = 2) =>
-      sheet.getCell(row, columns.findIndex((c) => c.key === key) + 1);
+      sheet.getCell(
+        row,
+        columns
+          .flatMap((c) => (c.key === "budget" ? [c, { key: "vat" }] : [c]))
+          .findIndex((c) => c.key === key) + 1,
+      );
     assert.deepEqual(
       sheet.getRow(1).values.slice(1),
-      columns.map((c) => c.label),
+      columns.flatMap((c) =>
+        c.key === "budget" ? ["Очікувана вартість", "ПДВ"] : [c.label],
+      ),
     );
     assert.equal(sheet.rowCount, 3);
     assert.equal(cell("comment").value, "");
@@ -59,7 +66,7 @@ for (const mode of ["compact", "detailed"])
     assert.equal(cell("status", 3).value, "Не перемогли");
     assert.equal(cell("status", 3).fill.fgColor.argb, "FFF8E4CD");
     assert.equal(cell("id").text, sample[0].id);
-    assert.match(cell("id").hyperlink, /prozorro.gov.ua\/tender\//);
+    assert.match(cell("id").hyperlink, /zakupivli.pro\/gov\/tenders\//);
     assert.equal(cell("budget").value, 32400000);
     assert.match(cell("budget").numFmt, /₴/);
     assert.equal(sheet.views[0].xSplit, 2);

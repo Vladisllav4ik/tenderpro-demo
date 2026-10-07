@@ -1,3 +1,5 @@
+Поточні правки таблиці, ПДВ, Zakupivli links і document preview: [TABLE_CARD_UPDATES.md](TABLE_CARD_UPDATES.md).
+
 Поточна інтеграція Prozorro/document pipeline та результати реального crash-test: [SOURCE_ENRICHMENT.md](SOURCE_ENRICHMENT.md). Нижче також збережені описи попередніх етапів MVP.
 
 Поточний режим: порожня робоча база, реальний Excel crash-test до 10 тендерів. Інструкція: [CRASH_TEST.md](CRASH_TEST.md).

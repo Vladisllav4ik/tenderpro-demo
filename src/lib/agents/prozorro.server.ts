@@ -1,6 +1,7 @@
 import type { Tender } from "../demo-data.ts";
 import type { JsonValue } from "./contracts.ts";
 import { sanitizeSnapshot } from "./snapshots.server.ts";
+import { presentationTender } from "../tender-presentation.ts";
 export class ProzorroSource {
   private request: typeof fetch;
   constructor(request: typeof fetch = fetch) {
@@ -193,5 +194,5 @@ export function normalizeProzorro(
       ? { updatedAt: new Date(data["dateModified"]).toISOString() }
       : {}),
   };
-  return t;
+  return presentationTender(t, data);
 }

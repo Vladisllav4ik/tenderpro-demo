@@ -1,0 +1,11 @@
+# Таблиця і картка після crash-test
+
+- UI та Excel export: «Очікувана вартість», `expectedValue` з backward compatibility budget/totalAmount. ПДВ видно окремо; export має колонку «ПДВ». Старий import template не змінено.
+- `vatIncluded`: лише boolean `value.valueAddedTaxIncluded` з Prozorro або вже підтверджене поле джерела. Відсутній boolean — null. AI provenance не приймається як факт. Джерело записано у provenance. Наявні 10 records доповнені зі збережених raw snapshots без повторного запуску агентів.
+- ID веде на `https://zakupivli.pro/gov/tenders/<lower-case TenderID>`. Публічний pattern підтверджено на [сторінці Zakupivli.pro](https://zakupivli.pro/gov/tenders/ua-2026-07-01-006715-a). Prozorro URL збережено окремо. Прямий automated HTTP до поточного ID потрапляє під Cloudflare; це не перевірка входу в робочий кабінет.
+- Скорочення одиниць — закритий mapping типових назв; невідомі назви залишаються як у source.
+- Preview завантажується лише при відкритті документа, з оригінальних приватно кешованих bytes. PDF — browser viewer зі сторінкою, масштабом, scroll і download. DOCX — sanitized HTML із заголовками, абзацами, списками, таблицями, bold/italic. DOC — спрощені абзаци з повідомленням про обмеження форматування. XLS/XLSX — окремі аркуші й таблиця; TXT — plain text; PNG/JPEG/GIF/WebP/BMP — image. Інші формати — metadata/open original. Preview відокремлений від extracted text для Agent 3. Word/Excel не завантажуються в browser bundle.
+- Default: publishedAt ASC, потім createdAt ASC та ID. Якщо publishedAt відсутня — createdAt. Ручний sort має пріоритет до reset. Старий default AI sort мігрує на chronological; інші збережені ручні сортування залишаються. Скидання активного вигляду повертає chronological ASC. Оновлення даних не викликає scrollTo; React row keys залишаються стабільними.
+- Межі preview: XLS/XLSX до 2000 рядків/100 колонок на аркуш, TXT до 250000 символів; повний вміст доступний в оригіналі. Складні елементи Word можуть відрізнятися від оригіналу.
+
+Перевірки: 103/103 tests, TypeScript, build; browser real DOCX preview, expected value/VAT, workspace links; isolated browser regression actual preview component для PDF controls, XLSX sheet switching і unsupported fallback. Build має попередження про великий client chunk ExcelJS. Pipeline не перебудовано, платні запити не запускались, deployment не виконувався.

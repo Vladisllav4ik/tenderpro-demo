@@ -2,6 +2,7 @@ import type { Tender } from "./demo-data.ts";
 import { detailFlow, type DetailFlow } from "./tender-detail.ts";
 import { tableTender } from "./worksheet-model.ts";
 import { shortSubject } from "./tender-subject.ts";
+import { presentationTender } from "./tender-presentation.ts";
 const emptyFlow = (): DetailFlow => ({
   parts: [],
   technical: [],
@@ -41,7 +42,7 @@ export function canonicalTender(t: Tender): CanonicalTender {
     risks: t.risks ?? flow.risks,
   };
   return {
-    ...data,
+    ...presentationTender(data),
     subject: t.subject ?? "-",
     cpv: t.cpv ?? null,
     totalAmount: data.budget,

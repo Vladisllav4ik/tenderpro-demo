@@ -2,6 +2,12 @@ import type { Tender } from "./demo-data";
 
 export type DetailDocument = {
   documentId?: string;
+  sourceUrl?: string;
+  storageUrl?: string;
+  sizeBytes?: number;
+  extractedText?: string;
+  previewType?: import("./document-preview").DocumentPreview["previewType"];
+  previewData?: import("./document-preview").DocumentPreview;
   url?: string;
   mimeType?: string | null;
   datePublished?: string | null;

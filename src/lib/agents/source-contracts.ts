@@ -1,6 +1,7 @@
 import type { Tender } from "../demo-data.ts";
 import type { JsonValue } from "./contracts.ts";
 export type SourceDocument = {
+  sizeBytes?: number;
   documentId: string;
   name: string;
   url: string;

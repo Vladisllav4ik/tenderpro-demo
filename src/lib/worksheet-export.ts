@@ -1,7 +1,7 @@
+import { workspaceZakupivliURL, vatLabel } from "./tender-presentation.ts";
 import type { Tender } from "./demo-data";
 import { periodInfo, statusTone } from "./tender-workflow.ts";
 import {
-  prozorroLink,
   worksheetFilename,
   worksheetValue,
   type ExportColumn,
@@ -22,19 +22,33 @@ export async function createWorksheetWorkbook(
   zoom = 100,
   now = new Date(),
 ) {
-  const { default: ExcelJS } = await import("exceljs");
+  const mod = await import("exceljs");
+  const ExcelJS = mod.default ?? mod;
+  const exportColumns = columns.flatMap((c) =>
+    c.key === "budget"
+      ? [
+          { ...c, label: "Очікувана вартість" },
+          {
+            key: "vat" as const,
+            label: "ПДВ",
+            width: 110,
+            pinned: c.pinned ?? false,
+          },
+        ]
+      : [c],
+  );
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "TenderPro";
   workbook.created = now;
   let frozen = 0;
-  for (const c of columns) {
+  for (const c of exportColumns) {
     if (c.pinned ?? frozen < 2) frozen++;
     else break;
   }
   const sheet = workbook.addWorksheet("Тендери", {
     views: [{ state: "frozen", xSplit: frozen, ySplit: 1 }],
   });
-  sheet.columns = columns.map((c) => ({
+  sheet.columns = exportColumns.map((c) => ({
     header: c.label === "↗" ? "Посилання" : c.label,
     key: c.key,
     width: Math.max(5, (c.width - 5) / 7),
@@ -43,19 +57,21 @@ export async function createWorksheetWorkbook(
   sheet.getRow(1).height = 36 * scale;
   sheet.autoFilter = {
     from: { row: 1, column: 1 },
-    to: { row: 1, column: columns.length },
+    to: { row: 1, column: exportColumns.length },
   };
   items.forEach((t, index) => {
     const row = sheet.addRow(
-      columns.map((c) =>
+      exportColumns.map((c) =>
         c.key === "id"
-          ? { text: t.id, hyperlink: prozorroLink(t) }
-          : worksheetValue(t, c.key, index, now),
+          ? { text: t.id, hyperlink: workspaceZakupivliURL(t) }
+          : c.key === "vat"
+            ? vatLabel(t.vatIncluded, "-")
+            : worksheetValue(t, c.key, index, now),
       ),
     );
     row.height = 48 * scale;
     row.eachCell((cell, columnNumber) => {
-      const column = columns[columnNumber - 1]!;
+      const column = exportColumns[columnNumber - 1]!;
       cell.font = {
         name: "Calibri",
         size: 11 * scale,

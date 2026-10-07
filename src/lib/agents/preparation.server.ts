@@ -51,6 +51,7 @@ export class Agent2PreparationService implements SourcePreparationService {
         );
         result.tender.documents = result.documents.map((d) => ({
           documentId: d.documentId,
+          ...(d.sizeBytes !== undefined ? { sizeBytes: d.sizeBytes } : {}),
           name: d.name,
           url: d.url,
           mimeType: d.mimeType,

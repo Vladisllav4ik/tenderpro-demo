@@ -82,7 +82,7 @@ test("v1 layouts migrate requirements/order while preserving widths, visibility 
   assert.deepEqual(migrated.widths, { title: 330 });
   assert.deepEqual(migrated.visibility, saved.visibility);
   assert.deepEqual(migrated.sort, saved.sort);
-  assert.equal(migrated.version, 2);
+  assert.equal(migrated.version, 3);
   const keys = layoutColumns(
     { ...migrated, pinned: ["number", "comment"] },
     "detailed",

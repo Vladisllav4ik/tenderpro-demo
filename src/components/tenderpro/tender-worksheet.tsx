@@ -1,3 +1,9 @@
+import {
+  chronologicalCompare,
+  expectedValueLabel,
+  vatLabel,
+  workspaceZakupivliURL,
+} from "@/lib/tender-presentation";
 import { useAccount } from "@/lib/account";
 import { TableRangePicker } from "./table-range-picker";
 import { WorksheetImport } from "./worksheet-import";
@@ -161,6 +167,7 @@ export function TenderWorksheet({
       "detailedLayout",
       defaultLayout("detailed"),
       validLayout,
+      migrateLayout,
     );
   const columnState = detailed ? detailedLayout : compactLayout;
   const setColumnState = detailed ? setDetailedLayout : setCompactLayout;
@@ -343,18 +350,20 @@ export function TenderWorksheet({
   const sorted = useMemo(
     () =>
       [...tableItems].sort((a, b) => {
+        if (sort.key === "chronological") return chronologicalCompare(a, b);
         const value = (t: Tender): string | number =>
           sort.key === "number"
             ? tableItems.indexOf(t)
             : sort.key === "comment"
               ? (comments[t.id] ?? t.commentText ?? t.comment ?? "")
-              : worksheetSortValue(t, sort.key, now);
+              : worksheetSortValue(t, sort.key as ColumnKey, now);
         const av = value(a),
           bv = value(b);
         return (
           (typeof av === "number" && typeof bv === "number"
             ? av - bv
-            : String(av).localeCompare(String(bv), "uk")) * sort.direction
+            : String(av).localeCompare(String(bv), "uk")) * sort.direction ||
+          chronologicalCompare(a, b)
         );
       }),
     [tableItems, sort, comments, now],
@@ -742,7 +751,7 @@ export function TenderWorksheet({
           aria-label="Оновити вигляд таблиці"
           title="Оновити вигляд таблиці"
           onClick={() => {
-            setSort({ key: "score", direction: -1 });
+            setSort({ key: "chronological", direction: 1 });
             scroller.current?.scrollTo({ top: 0, left: 0 });
           }}
         >
@@ -982,10 +991,10 @@ export function TenderWorksheet({
                     ) : c.key === "id" ? (
                       <a
                         className="sheet-id-link sheet-two-lines"
-                        href={prozorro(t)}
+                        href={workspaceZakupivliURL(t)}
                         target="_blank"
                         rel="noreferrer"
-                        aria-label={`Відкрити Prozorro: ${t.id}`}
+                        aria-label={`Відкрити Zakupivli.pro: ${t.id}`}
                       >
                         {t.id}
                       </a>
@@ -1058,7 +1067,10 @@ export function TenderWorksheet({
                     ) : c.key === "period" ? (
                       <SubmissionCell tender={t} now={now} zoom={zoom} />
                     ) : c.key === "budget" ? (
-                      amount(t.budget, t.currency)
+                      <div className="sheet-expected-value">
+                        <span>{expectedValueLabel(t)}</span>
+                        <small>{vatLabel(t.vatIncluded)}</small>
+                      </div>
                     ) : c.key === "unitPrice" && t.unitPrice !== undefined ? (
                       amount(t.unitPrice, t.currency)
                     ) : (
@@ -1129,7 +1141,10 @@ export function TenderWorksheet({
                 <p className="sheet-panel-customer">{selected.customer}</p>
                 <dl className="sheet-panel-facts">
                   {[
-                    ["Сума", money(selected.budget, selected.currency)],
+                    [
+                      "Очікувана вартість",
+                      `${expectedValueLabel(selected)} · ${vatLabel(selected.vatIncluded)}`,
+                    ],
                     [
                       "Період",
                       `${shortDate(periodInfo(selected, now).start)} → ${selected.deadline.slice(0, 5)}`,

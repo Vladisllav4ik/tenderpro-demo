@@ -2500,3 +2500,144 @@ body {
   color: #65768b;
   margin-top: calc(3px * var(--sheet-zoom));
 }
+.sheet-expected-value {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  white-space: nowrap;
+}
+.sheet-expected-value small {
+  color: #64748b;
+  font-size: 0.85em;
+}
+.tender-workspace-link {
+  font-weight: 600;
+}
+.tender-card-fields dd {
+  white-space: pre-line;
+}
+.tender-document-modal {
+  width: min(1100px, 95vw) !important;
+  max-width: 1100px !important;
+  max-height: 92vh;
+}
+.document-viewer {
+  min-width: 0;
+}
+.document-viewer-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  font-size: 13px;
+}
+.document-viewer-toolbar a {
+  color: #0758d5;
+  text-decoration: underline;
+}
+.document-viewer-toolbar button,
+.document-viewer-toolbar select,
+.document-viewer-toolbar input {
+  border: 1px solid #cbd5e1;
+  border-radius: 5px;
+  padding: 5px 9px;
+  background: white;
+  color: #172033;
+}
+.document-viewer-toolbar button[aria-pressed="true"] {
+  background: #dcecff;
+}
+.document-viewer-toolbar input {
+  width: 75px;
+}
+.document-viewer-notice {
+  margin: 8px 0;
+  color: #64748b;
+  font-size: 13px;
+}
+.document-pdf {
+  width: 100%;
+  height: 65vh;
+  border: 1px solid #cbd5e1;
+}
+.document-html {
+  max-height: 65vh;
+  overflow: auto;
+  background: white;
+  color: #172033;
+  border: 1px solid #e2e8f0;
+  padding: 24px;
+  line-height: 1.65;
+}
+.document-html h1,
+.document-html h2,
+.document-html h3,
+.document-html h4 {
+  font-weight: 700;
+  margin: 1em 0 0.5em;
+}
+.document-html h1 {
+  font-size: 1.6em;
+}
+.document-html h2 {
+  font-size: 1.35em;
+}
+.document-html h3 {
+  font-size: 1.15em;
+}
+.document-html p {
+  margin: 0.7em 0;
+}
+.document-html ul {
+  list-style: disc;
+}
+.document-html ol {
+  list-style: decimal;
+}
+.document-html ul,
+.document-html ol {
+  padding-left: 25px;
+  margin: 0.7em 0;
+}
+.document-html table,
+.document-spreadsheet table {
+  border-collapse: collapse;
+  width: max-content;
+  min-width: 100%;
+}
+.document-html td,
+.document-html th,
+.document-spreadsheet td,
+.document-spreadsheet th {
+  border: 1px solid #cbd5e1;
+  padding: 7px 10px;
+  vertical-align: top;
+  white-space: pre-wrap;
+}
+.document-html table {
+  width: 100%;
+}
+.document-spreadsheet {
+  overflow: auto;
+  max-height: 65vh;
+  background: white;
+  color: #172033;
+}
+.document-spreadsheet th {
+  background: #f1f5f9;
+  position: sticky;
+  left: 0;
+  font-size: 12px;
+}
+.document-text {
+  max-height: 65vh;
+  overflow: auto;
+  white-space: pre-wrap;
+  font-family: monospace;
+}
+.document-image {
+  max-width: 100%;
+  max-height: 65vh;
+  object-fit: contain;
+}

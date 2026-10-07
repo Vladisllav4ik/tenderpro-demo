@@ -20,6 +20,7 @@ import {
 import { sanitizeSnapshot } from "./snapshots.server";
 import { runningAgentAccounts } from "./execution-lock.server";
 import { Agent2PreparationService } from "./preparation.server";
+import { presentationTender } from "../tender-presentation";
 let initializing: Promise<void> | undefined;
 export function initializeCrashStorage() {
   if (!initializing)
@@ -71,9 +72,16 @@ function checkModes() {
 export async function importedState() {
   const account = requireAccount();
   await initializeCrashStorage();
-  return crashRepository.list(
+  const records = await crashRepository.list(
     account.role === "ADMIN" ? undefined : account.id,
   );
+  return records.map((r) => ({
+    ...r,
+    finalMergedTender: presentationTender(
+      r.finalMergedTender,
+      r.preparation?.rawProzorroData as Record<string, any> | null,
+    ),
+  }));
 }
 export async function importAndRunCrash(raw: { tenders: Tender[] }) {
   const account = requireAccount();

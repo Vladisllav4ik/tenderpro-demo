@@ -1,3 +1,4 @@
+import { unitAbbreviation, subjectWithUnits } from "@/lib/tender-presentation";
 import { Palette } from "lucide-react";
 import {
   Popover,
@@ -64,7 +65,7 @@ export function ObjectsCell({
   const parameters = item
     ? [
         ...(item.quantity !== undefined
-          ? [`${item.quantity} ${item.unit ?? ""}`]
+          ? [`${item.quantity} ${unitAbbreviation(item.unit)}`]
           : []),
         ...(item.characteristics ?? [])
           .slice(0, 3)
@@ -99,13 +100,13 @@ export function ObjectsCell({
                   [
                     object.name,
                     object.quantity !== undefined
-                      ? `${object.quantity} ${object.unit ?? ""}`
+                      ? `${object.quantity} ${unitAbbreviation(object.unit)}`
                       : "",
                   ]
                     .filter(Boolean)
                     .join(" · "),
                 )
-                .join("\n") || "-"}
+                .join("\n") || subjectWithUnits(t)}
             </span>
           )}
           {objects.length > 2 && <small>+{objects.length - 2}</small>}

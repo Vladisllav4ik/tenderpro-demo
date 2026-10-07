@@ -1,4 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import {
+  expectedValueLabel,
+  vatLabel,
+  subjectWithUnits,
+  workspaceZakupivliURL,
+} from "@/lib/tender-presentation";
+import { DocumentViewer } from "./document-viewer";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import {
   ArrowLeft,
@@ -82,8 +89,7 @@ export function TenderCard({
       ...doc.sources,
     ].join("\n");
   const download = (doc: DetailDocument) => {
-    // Fixtures are extracted text, not the original procurement attachments.
-    // Keep the real file format honest and label the downloadable local extract.
+    // This action is explicitly an analysis text extract, separate from the original.
     const url = URL.createObjectURL(
       new Blob([textFor(doc)], { type: "text/plain;charset=utf-8" }),
     );
@@ -96,7 +102,7 @@ export function TenderCard({
     setTimeout(() => URL.revokeObjectURL(url), 60000);
     documentAction(t.id, doc.name, "downloaded");
   };
-  const fields = [
+  const fields: [string, ReactNode][] = [
     ["Назва", t.title],
     ["ID", t.id],
     ["Замовник", t.customer],
@@ -104,8 +110,15 @@ export function TenderCard({
     ["CPV", t.cpv ?? "-"],
     ["Офіційна назва", t.officialTitle ?? "-"],
     ["Статус Prozorro", t.prozorroStatus ?? "-"],
-    ["Предмет закупівлі", t.subject ?? "-"],
-    ["Сума", money(t.budget, t.currency)],
+    ["Предмет закупівлі", subjectWithUnits(t)],
+    [
+      "Очікувана вартість",
+      <>
+        <span>{expectedValueLabel(t)}</span>
+        <br />
+        <small>{vatLabel(t.vatIncluded)}</small>
+      </>,
+    ],
     ["Кількість", t.quantity ?? "-"],
     ["Од. виміру", t.unit ?? "-"],
     [
@@ -139,9 +152,21 @@ export function TenderCard({
             </span>
             <small>{period.label}</small>
           </div>
-          <strong>{money(t.budget, t.currency)}</strong>
+          <div>
+            <strong>{expectedValueLabel(t)}</strong>
+            <br />
+            <small>{vatLabel(t.vatIncluded)}</small>
+          </div>
+          <a
+            className="tender-workspace-link"
+            href={workspaceZakupivliURL(t)}
+            target="_blank"
+            rel="noreferrer"
+          >
+            Відкрити в Zakupivli.pro <ExternalLink size={15} />
+          </a>
           <a href={prozorroLink(t)} target="_blank" rel="noreferrer">
-            Prozorro <ExternalLink size={15} />
+            Джерело Prozorro <ExternalLink size={15} />
           </a>
         </div>
       </header>
@@ -167,7 +192,7 @@ export function TenderCard({
                 <dt>Посилання</dt>
                 <dd>
                   <a href={prozorroLink(t)} target="_blank" rel="noreferrer">
-                    Відкрити Prozorro ↗
+                    Джерело Prozorro ↗
                   </a>
                 </dd>
               </div>
@@ -241,15 +266,16 @@ export function TenderCard({
               {flow.documents.map((doc) => {
                 const state = t.documentStates?.[doc.name];
                 return (
-                  <article key={doc.name}>
+                  <article key={doc.documentId ?? doc.name}>
                     <FileText size={21} />
                     <div className="tender-document-info">
                       <h3>{doc.name}</h3>
                       <p>
-                        {doc.name.split(".").at(-1)?.toUpperCase()} · витяг{" "}
-                        {new Blob([textFor(doc)]).size.toLocaleString("uk-UA")}{" "}
-                        байт ·{" "}
-                        {doc.dateModified ? fullDate(doc.dateModified) : "-"}
+                        {doc.name.split(".").at(-1)?.toUpperCase()} ·{" "}
+                        {doc.sizeBytes !== undefined
+                          ? `${doc.sizeBytes.toLocaleString("uk-UA")} байт`
+                          : "Розмір: -"}{" "}
+                        · {doc.dateModified ? fullDate(doc.dateModified) : "-"}
                       </p>
                       <p>
                         Download: {doc.downloadStatus ?? "unknown"} · Parse:{" "}
@@ -271,14 +297,16 @@ export function TenderCard({
                           setPreview(doc);
                         }}
                       >
-                        Відкрити
+                        Preview
                       </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => download(doc)}
-                      >
-                        <Download size={14} /> Завантажити
+                      <Button variant="outline" size="sm" asChild>
+                        <a
+                          href={doc.sourceUrl ?? doc.url}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          <Download size={14} /> Завантажити оригінал
+                        </a>
                       </Button>
                       <Button
                         variant="outline"
@@ -414,7 +442,9 @@ export function TenderCard({
           <DialogHeader>
             <DialogTitle>{preview?.name}</DialogTitle>
             <DialogDescription>
-              {analysis ? "Структурований аналіз джерела" : "Текст документа"}
+              {analysis
+                ? "Результат аналізу джерела"
+                : "Перегляд оригінального документа"}
             </DialogDescription>
           </DialogHeader>
           {preview && (
@@ -422,12 +452,14 @@ export function TenderCard({
               {analysis ? (
                 <SummaryList title="Ключові факти" items={[...preview.facts]} />
               ) : (
-                <pre>{preview.text}</pre>
+                <DocumentViewer tenderId={t.id} document={preview} />
               )}
               <SummaryList title="Джерела" items={[...preview.sources]} />
-              <Button variant="outline" onClick={() => download(preview)}>
-                Завантажити текст джерела (.txt)
-              </Button>
+              {analysis && (
+                <Button variant="outline" onClick={() => download(preview)}>
+                  Завантажити витяг для аналізу (.txt)
+                </Button>
+              )}
             </div>
           )}
         </DialogContent>

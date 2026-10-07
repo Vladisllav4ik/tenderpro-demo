@@ -1,3 +1,8 @@
+import {
+  getExpectedValue,
+  sourceProzorroURL,
+  unitAbbreviation,
+} from "./tender-presentation.ts";
 import type { Tender } from "./demo-data";
 import type { DetailFlow } from "./tender-detail";
 import {
@@ -16,7 +21,7 @@ export const sheetColumns = [
   { key: "quantity", label: "Кількість", width: 105 },
   { key: "unit", label: "Од. виміру", width: 110 },
   { key: "unitPrice", label: "Ціна за одиницю", width: 155 },
-  { key: "budget", label: "Загальна сума", width: 165 },
+  { key: "budget", label: "Очікувана вартість", width: 165 },
   { key: "id", label: "ID", width: 210 },
   { key: "period", label: "Період подання", width: 215 },
   { key: "auctionPeriod", label: "Період аукціону", width: 200 },
@@ -36,9 +41,9 @@ export const sheetColumns = [
 ] as const;
 export type ColumnKey = (typeof sheetColumns)[number]["key"];
 export type TableMode = "compact" | "detailed";
-export type TableSort = { key: ColumnKey; direction: 1 | -1 };
+export type TableSort = { key: ColumnKey | "chronological"; direction: 1 | -1 };
 export type TableLayout = {
-  version: 1 | 2;
+  version: 1 | 2 | 3;
   order: ColumnKey[];
   visibility: ColumnKey[];
   widths: Partial<Record<ColumnKey, number>>;
@@ -68,12 +73,12 @@ export const detailedOrder: ColumnKey[] = sheetColumns.map((c) => c.key);
 export function defaultLayout(mode: TableMode): TableLayout {
   const order = (mode === "compact" ? compactOrder : detailedOrder).slice();
   return {
-    version: 2,
+    version: 3,
     order,
     visibility: order.slice(),
     widths: {},
     pinned: ["number", "comment"],
-    sort: { key: "score", direction: -1 },
+    sort: { key: "chronological", direction: 1 },
   };
 }
 export function validLayout(value: unknown): boolean {
@@ -81,7 +86,7 @@ export function validLayout(value: unknown): boolean {
   const v = value as TableLayout;
   const keys = sheetColumns.map((c) => c.key);
   return (
-    [1, 2].includes(v.version) &&
+    [1, 2, 3].includes(v.version) &&
     [v.order, v.visibility, v.pinned].every(
       (list) => Array.isArray(list) && list.every((k) => keys.includes(k)),
     ) &&
@@ -97,12 +102,22 @@ export function validLayout(value: unknown): boolean {
         w <= 600,
     ) &&
     !!v.sort &&
-    keys.includes(v.sort.key) &&
+    (v.sort.key === "chronological" || keys.includes(v.sort.key)) &&
     [1, -1].includes(v.sort.direction)
   );
 }
 export function migrateLayout(layout: TableLayout): TableLayout {
-  if (layout.version === 2) return layout;
+  if (layout.version === 3) return layout;
+  const sort: TableSort =
+    layout.sort.key === "score" && layout.sort.direction === -1
+      ? { key: "chronological", direction: 1 }
+      : layout.sort;
+  if (layout.version === 2)
+    return {
+      ...layout,
+      version: 3,
+      sort,
+    };
   const tail: ColumnKey[] = ["topCategory", "score", "status"];
   const requirements: ColumnKey[] = [
     "technicalRequirements",
@@ -115,7 +130,8 @@ export function migrateLayout(layout: TableLayout): TableLayout {
   );
   return {
     ...layout,
-    version: 2,
+    version: 3,
+    sort,
     order: [...core, ...(hasRequirements ? requirements : []), ...tail],
     pinned: layout.pinned.filter((k) => !tail.includes(k)),
   };
@@ -161,8 +177,7 @@ export const commentPalette = [
 ] as const;
 export const commentFill = (color?: Tender["commentColor"]) =>
   commentPalette.find((c) => c.value === color)?.fill ?? null;
-export const prozorroLink = (t: Tender) =>
-  `https://prozorro.gov.ua/tender/${encodeURIComponent(t.id.replace(/-IMP.*$/, ""))}`;
+export const prozorroLink = (t: Tender) => sourceProzorroURL(t);
 export const amount = (value: number, currency?: string) =>
   `${new Intl.NumberFormat("uk-UA", { maximumFractionDigits: 2 }).format(value)}${currency ? ` ${currency}` : ""}`;
 export function categoryLabel(
@@ -354,7 +369,7 @@ export function objectLabel(
     object.catalogue,
     ...(object.characteristics ?? []).slice(0, 3),
     object.quantity !== undefined
-      ? `${object.quantity} ${object.unit ?? ""}`
+      ? `${object.quantity} ${unitAbbreviation(object.unit)}`
       : "",
   ]
     .filter(Boolean)
@@ -392,7 +407,8 @@ export function worksheetValue(
   if (key === "quantity" || key === "unitPrice") return t[key] ?? "-";
   if (key === "unit" || key === "address") return t[key] ?? "-";
   if (key === "score" && (t.analysisPending || t.aiScore === null)) return "-";
-  if (key === "budget" || key === "score") return t[key];
+  if (key === "budget") return getExpectedValue(t) ?? "-";
+  if (key === "score") return t[key];
   return String(t[key as "title"]) || "-";
 }
 export function worksheetSortValue(
@@ -400,7 +416,8 @@ export function worksheetSortValue(
   key: ColumnKey,
   now: Date,
 ): string | number {
-  if (["budget", "score", "quantity", "unitPrice"].includes(key))
+  if (key === "budget") return getExpectedValue(t) ?? -1;
+  if (["score", "quantity", "unitPrice"].includes(key))
     return (t[key as "budget"] as number | undefined) ?? -1;
   if (key === "period")
     return t.submissionPeriod?.end ?? t.deadline.split(".").reverse().join("-");
