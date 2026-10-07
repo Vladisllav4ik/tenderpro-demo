@@ -1,4 +1,10 @@
 import {
+  CommentPalette,
+  ObjectsCell,
+  SubmissionCell,
+  DetailCell,
+} from "./worksheet-cells";
+import {
   useEffect,
   useMemo,
   useRef,
@@ -34,6 +40,8 @@ import {
   Wrench,
   Briefcase,
   Package,
+  GripVertical,
+  Pin,
 } from "lucide-react";
 import {
   Popover,
@@ -62,6 +70,18 @@ import {
   periodCaption,
   prozorroLink as prozorro,
   type ColumnKey,
+  type TableLayout,
+  type TableSort,
+  defaultLayout,
+  validLayout,
+  layoutColumns,
+  compactOrder,
+  detailedOrder,
+  tableTender,
+  worksheetSortValue,
+  worksheetValue,
+  commentFill,
+  amount,
 } from "@/lib/worksheet-model";
 import type { DetailFlow } from "@/lib/tender-detail";
 
@@ -116,62 +136,38 @@ export function TenderWorksheet({
     false,
     (v) => typeof v === "boolean",
   );
-  const [columnState, setColumnState] = useWorkspaceState<{
-    visible: ColumnKey[];
-    order: ColumnKey[];
-    widths: Partial<Record<ColumnKey, number>>;
-  }>(
-    "columns",
-    {
-      visible: columns
-        .filter((c) => !["budget", "region", "stage"].includes(c.key))
-        .map((c) => c.key),
-      order: columns.map((c) => c.key),
-      widths: {},
-    },
-    (v) => {
-      if (!v || typeof v !== "object") return false;
-      const saved = v as {
-        visible: unknown[];
-        order: unknown[];
-        widths: Record<string, unknown>;
-      };
-      return (
-        Array.isArray(saved.visible) &&
-        Array.isArray(saved.order) &&
-        !!saved.widths &&
-        typeof saved.widths === "object" &&
-        [...saved.visible, ...saved.order].every((key) =>
-          columns.some((c) => c.key === key),
-        ) &&
-        Object.entries(saved.widths).every(
-          ([key, width]) =>
-            columns.some((c) => c.key === key) &&
-            typeof width === "number" &&
-            Number.isFinite(width) &&
-            width >= 44 &&
-            width <= 600,
-        )
-      );
-    },
+  const [detailed, setDetailed, modeReady] = useWorkspaceState(
+    "detailMode",
+    false,
+    (v) => typeof v === "boolean",
   );
-  const visible = columnState.visible;
+  const [compactLayout, setCompactLayout, compactReady] =
+    useWorkspaceState<TableLayout>(
+      "compactLayout",
+      defaultLayout("compact"),
+      validLayout,
+    );
+  const [detailedLayout, setDetailedLayout, detailedReady] =
+    useWorkspaceState<TableLayout>(
+      "detailedLayout",
+      defaultLayout("detailed"),
+      validLayout,
+    );
+  const columnState = detailed ? detailedLayout : compactLayout;
+  const setColumnState = detailed ? setDetailedLayout : setCompactLayout;
+  const visible = columnState.visibility;
   const setVisible = (update: (value: ColumnKey[]) => ColumnKey[]) =>
-    setColumnState((s) => ({ ...s, visible: update(s.visible) }));
-  const [sort, setSort] = useWorkspaceState<{
-    key: ColumnKey;
-    direction: 1 | -1;
-  }>(
-    "sort",
-    { key: "score", direction: -1 },
-    (v) =>
-      !!v &&
-      typeof v === "object" &&
-      columns.some(
-        (c) => c.key === (v as { key: string; direction: number }).key,
-      ) &&
-      [1, -1].includes((v as { key: string; direction: number }).direction),
-  );
+    setColumnState((s) => ({ ...s, visibility: update(s.visibility) }));
+  const sort = columnState.sort;
+  const setSort = (update: TableSort | ((value: TableSort) => TableSort)) =>
+    setColumnState((s) => ({
+      ...s,
+      sort: typeof update === "function" ? update(s.sort) : update,
+    }));
+  useEffect(() => {
+    if (compactReady && detailedReady) writeWorkspace("sort", sort);
+  }, [sort, compactReady, detailedReady]);
+  const draggingColumn = useRef<ColumnKey | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useWorkspaceState<string | null>(
     "selectedTenderId",
@@ -196,17 +192,24 @@ export function TenderWorksheet({
       : undefined;
   const displayItems = editing ? [...items, editing] : items;
   const flow = selected ? details(selected) : null;
+  const allowedOrder = detailed ? detailedOrder : compactOrder;
   const optionalOrder = [
-    ...new Set([...columnState.order, ...columns.map((c) => c.key)]),
-  ].filter((k) => !["number", "comment", "status"].includes(k));
+    ...new Set([...columnState.order, ...allowedOrder]),
+  ].filter(
+    (k) =>
+      allowedOrder.includes(k) && !["number", "comment", "status"].includes(k),
+  );
   const orderedColumns = ["number", "comment", ...optionalOrder, "status"]
-    .map((key) => columns.find((c) => c.key === key))
-    .filter((c): c is (typeof columns)[number] => !!c);
-  const activeColumns = orderedColumns.filter((c) =>
-    c.key === "score"
-      ? showAI
-      : ["number", "comment", "title"].includes(c.key) ||
-        visible.includes(c.key),
+    .map((key) => columns.find((c) => c.key === key)!)
+    .filter(Boolean);
+  const activeColumns = layoutColumns(
+    columnState,
+    detailed ? "detailed" : "compact",
+    showAI,
+  );
+  const tableItems = useMemo(
+    () => displayItems.map((t) => tableTender(t, details(t))),
+    [items, state.tenders, editingId, details],
   );
   const draftTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   const saveRef = useRef(saveComment);
@@ -239,7 +242,15 @@ export function TenderWorksheet({
     };
   }, []);
   useEffect(() => {
-    if (!workspaceReady || !ready || !scroller.current) return;
+    if (
+      !workspaceReady ||
+      !ready ||
+      !modeReady ||
+      !compactReady ||
+      !detailedReady ||
+      !scroller.current
+    )
+      return;
     const frame = requestAnimationFrame(() => {
       scroller.current?.scrollTo({
         left: Number(readWorkspace("scrollX", 0)) || 0,
@@ -251,7 +262,7 @@ export function TenderWorksheet({
       }
     });
     return () => cancelAnimationFrame(frame);
-  }, [workspaceReady, ready]);
+  }, [workspaceReady, ready, modeReady, compactReady, detailedReady]);
   const moveColumn = (key: ColumnKey, direction: number) => {
     const order = optionalOrder.slice();
     const index = order.indexOf(key);
@@ -263,6 +274,27 @@ export function TenderWorksheet({
       order: ["number", "comment", ...order, "status"],
     }));
   };
+  const reorderColumn = (source: ColumnKey, target: ColumnKey) => {
+    if (
+      ["number", "comment", "status"].includes(source) ||
+      ["number", "comment", "status"].includes(target) ||
+      source === target
+    )
+      return;
+    const order = optionalOrder.filter((k) => k !== source);
+    order.splice(order.indexOf(target), 0, source);
+    setColumnState((s) => ({
+      ...s,
+      order: ["number", "comment", ...order, "status"],
+    }));
+  };
+  const togglePin = (key: ColumnKey) =>
+    setColumnState((s) => ({
+      ...s,
+      pinned: s.pinned.includes(key)
+        ? s.pinned.filter((k) => k !== key)
+        : [...s.pinned, key],
+    }));
   const resizeColumn = (key: ColumnKey, event: React.PointerEvent) => {
     event.preventDefault();
     event.stopPropagation();
@@ -277,7 +309,7 @@ export function TenderWorksheet({
         widths: {
           ...s.widths,
           [key]: Math.max(
-            key === "number" ? 44 : 90,
+            key === "number" ? 44 : key === "score" ? 60 : 90,
             Math.min(
               key === "number" ? 80 : 600,
               width + ((e.clientX - startX) * 100) / zoom,
@@ -296,17 +328,13 @@ export function TenderWorksheet({
   };
   const sorted = useMemo(
     () =>
-      [...displayItems].sort((a, b) => {
+      [...tableItems].sort((a, b) => {
         const value = (t: Tender): string | number =>
           sort.key === "number"
-            ? displayItems.indexOf(t)
+            ? tableItems.indexOf(t)
             : sort.key === "comment"
-              ? (comments[t.id] ?? t.comment ?? "")
-              : sort.key === "link"
-                ? t.id
-                : sort.key === "period"
-                  ? t.deadline.split(".").reverse().join("-")
-                  : t[sort.key];
+              ? (comments[t.id] ?? t.commentText ?? t.comment ?? "")
+              : worksheetSortValue(t, sort.key, now);
         const av = value(a),
           bv = value(b);
         return (
@@ -315,7 +343,7 @@ export function TenderWorksheet({
             : String(av).localeCompare(String(bv), "uk")) * sort.direction
         );
       }),
-    [items, state.tenders, editingId, sort, comments],
+    [tableItems, sort, comments, now],
   );
   const pages = Math.max(1, Math.ceil(sorted.length / pageSize));
   const currentPage = Math.min(page, pages);
@@ -367,20 +395,43 @@ export function TenderWorksheet({
         )
       ] ?? 100,
     );
-  const selectColumn = (key: ColumnKey, checked: boolean) => {
-    if (key === "score") {
-      setShowAI(checked);
-      return;
-    }
-    setVisible((v) => (checked ? [...v, key] : v.filter((k) => k !== key)));
-  };
+  const selectColumn = (key: ColumnKey, checked: boolean) =>
+    setVisible((v) =>
+      checked ? [...new Set([...v, key])] : v.filter((k) => k !== key),
+    );
   const columnWidth = (c: (typeof columns)[number]) =>
     c.key === "comment"
       ? Math.min(
           ((columnState.widths[c.key] ?? c.width) * zoom) / 100,
           Math.max(130, viewport * 0.22),
         )
-      : (c.width * zoom) / 100;
+      : ((columnState.widths[c.key] ?? c.width) * zoom) / 100;
+  const pinnedOffsets = new Map<ColumnKey, number>();
+  let frozenWidth = 0;
+  let canFreezeExtra = true;
+  activeColumns.forEach((c) => {
+    if (
+      ["number", "comment"].includes(c.key) ||
+      (canFreezeExtra &&
+        columnState.pinned.includes(c.key) &&
+        frozenWidth + columnWidth(c) < viewport * 0.65)
+    ) {
+      pinnedOffsets.set(c.key, frozenWidth);
+      frozenWidth += columnWidth(c);
+    } else canFreezeExtra = false;
+  });
+  const cellStyle = (key: ColumnKey, tender?: Tender): CSSProperties => ({
+    ...(pinnedOffsets.has(key)
+      ? {
+          position: "sticky",
+          left: pinnedOffsets.get(key),
+          zIndex: tender ? 3 : 12,
+        }
+      : {}),
+    ...(key === "comment" && tender && commentFill(tender.commentColor)
+      ? { backgroundColor: "#" + commentFill(tender.commentColor) }
+      : {}),
+  });
   const selectTender = (t: Tender) => {
     setSelectedId(t.id);
     viewTender(t.id);
@@ -401,9 +452,14 @@ export function TenderWorksheet({
       await downloadWorksheet(
         sorted.map((t) => ({
           ...t,
-          comment: comments[t.id] ?? t.comment ?? "",
+          comment: comments[t.id] ?? t.commentText ?? t.comment ?? "",
+          commentText: comments[t.id] ?? t.commentText ?? t.comment ?? "",
         })),
-        activeColumns.map((c) => ({ ...c, width: columnWidth(c) })),
+        activeColumns.map((c) => ({
+          ...c,
+          width: columnWidth(c),
+          pinned: pinnedOffsets.has(c.key),
+        })),
         zoom,
         now,
       );
@@ -520,6 +576,16 @@ export function TenderWorksheet({
           />
           <span>AI</span>
         </label>
+        <label className="sheet-detail-toggle">
+          <input
+            type="checkbox"
+            checked={detailed}
+            onChange={(e) => {
+              setDetailed(e.target.checked);
+            }}
+          />
+          <span>Деталізація</span>
+        </label>
         <Popover>
           <PopoverTrigger asChild>
             <button className="sheet-tool">
@@ -528,16 +594,78 @@ export function TenderWorksheet({
             </button>
           </PopoverTrigger>
           <PopoverContent className="sheet-menu sheet-column-menu" align="end">
-            <p className="sheet-menu-heading">Видимі колонки</p>
+            <p className="sheet-menu-heading">
+              Колонки · {detailed ? "Деталізація" : "Робочий режим"}
+            </p>
             {orderedColumns.map((c, index) => (
-              <label key={c.key}>
+              <label
+                key={c.key}
+                draggable={!["number", "comment", "status"].includes(c.key)}
+                onDragStart={(e) => {
+                  draggingColumn.current = c.key;
+                  e.dataTransfer.setData("text/plain", c.key);
+                }}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  if (draggingColumn.current)
+                    reorderColumn(draggingColumn.current, c.key);
+                  draggingColumn.current = null;
+                }}
+              >
+                <GripVertical size={12} />
                 <input
                   type="checkbox"
                   disabled={["number", "comment", "title"].includes(c.key)}
-                  checked={c.key === "score" ? showAI : visible.includes(c.key)}
+                  checked={visible.includes(c.key)}
                   onChange={(e) => selectColumn(c.key, e.target.checked)}
                 />
                 <span>{c.label}</span>
+                <input
+                  key={`width-${detailed}-${c.key}`}
+                  type="number"
+                  aria-label={`Ширина: ${c.label}`}
+                  min={c.key === "number" ? 44 : c.key === "score" ? 60 : 90}
+                  max={c.key === "number" ? 80 : 600}
+                  step={10}
+                  defaultValue={columnState.widths[c.key] ?? c.width}
+                  onClick={(e) => e.stopPropagation()}
+                  onChange={(e) => {
+                    const width = Number(e.target.value);
+                    if (
+                      width >=
+                        (c.key === "number"
+                          ? 44
+                          : c.key === "score"
+                            ? 60
+                            : 90) &&
+                      width <= (c.key === "number" ? 80 : 600)
+                    )
+                      setColumnState((s) => ({
+                        ...s,
+                        widths: { ...s.widths, [c.key]: width },
+                      }));
+                  }}
+                  onBlur={(e) => {
+                    if (!e.currentTarget.checkValidity())
+                      e.currentTarget.value = String(
+                        columnState.widths[c.key] ?? c.width,
+                      );
+                  }}
+                />
+                {c.key !== "status" && (
+                  <button
+                    aria-label={`Закріпити ${c.label}`}
+                    aria-pressed={columnState.pinned.includes(c.key)}
+                    disabled={["number", "comment"].includes(c.key)}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      togglePin(c.key);
+                    }}
+                  >
+                    <Pin size={12} />
+                  </button>
+                )}
                 {!["number", "comment", "status"].includes(c.key) && (
                   <>
                     <button
@@ -563,7 +691,8 @@ export function TenderWorksheet({
               </label>
             ))}
             <p className="sheet-menu-note">
-              CPV, дата публікації та тип процедури — після появи цих даних.
+              Перетягніть рядок для зміни порядку. Ширина — розділювач у
+              заголовку. Налаштування окремі для кожного режиму.
             </p>
           </PopoverContent>
         </Popover>
@@ -661,7 +790,20 @@ export function TenderWorksheet({
                 <th
                   key={c.key}
                   scope="col"
-                  className={`sheet-head-${c.key}`}
+                  className={`sheet-head-${c.key} ${pinnedOffsets.has(c.key) ? "sheet-pinned" : ""}`}
+                  style={cellStyle(c.key)}
+                  draggable={!["number", "comment", "status"].includes(c.key)}
+                  onDragStart={(e) => {
+                    draggingColumn.current = c.key;
+                    e.dataTransfer.setData("text/plain", c.key);
+                  }}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    if (draggingColumn.current)
+                      reorderColumn(draggingColumn.current, c.key);
+                    draggingColumn.current = null;
+                  }}
                   aria-sort={
                     sort.key === c.key
                       ? sort.direction === 1
@@ -681,8 +823,8 @@ export function TenderWorksheet({
                     aria-label={c.label}
                     title={c.label}
                   >
-                    {c.key === "link" ? <ExternalLink /> : c.label}
-                    {!["number", "link"].includes(c.key) &&
+                    {c.label}
+                    {c.key !== "number" &&
                       (sort.key === c.key ? (
                         sort.direction === 1 ? (
                           <ArrowUp />
@@ -709,11 +851,16 @@ export function TenderWorksheet({
                 key={t.id}
                 className={selectedId === t.id ? "is-selected" : ""}
                 aria-selected={selectedId === t.id}
-                onClick={() => selectTender(t)}
+                onClick={(e) => {
+                  if (
+                    !(e.target as HTMLElement).closest(".sheet-color-control")
+                  )
+                    selectTender(t);
+                }}
                 onDoubleClick={(e) => {
                   if (
                     (e.target as HTMLElement).closest(
-                      "textarea, .sheet-cell-comment, a",
+                      "textarea, .sheet-cell-comment, a, .sheet-submission, .sheet-objects-preview, .sheet-detail-preview",
                     )
                   )
                     return;
@@ -725,10 +872,19 @@ export function TenderWorksheet({
                   selectTender(t);
                   setAiOpen(true);
                 }}
-                onFocus={() => selectTender(t)}
+                onFocus={(e) => {
+                  if (
+                    !(e.target as HTMLElement).closest(".sheet-color-control")
+                  )
+                    selectTender(t);
+                }}
               >
                 {activeColumns.map((c) => (
-                  <td key={c.key} className={`sheet-cell-${c.key}`}>
+                  <td
+                    key={c.key}
+                    style={cellStyle(c.key, t)}
+                    className={`sheet-cell-${c.key} ${pinnedOffsets.has(c.key) ? "sheet-pinned" : ""}`}
+                  >
                     {c.key === "number" ? (
                       start + index + 1
                     ) : c.key === "title" ? (
@@ -763,17 +919,18 @@ export function TenderWorksheet({
                           );
                         })()}
                       </span>
-                    ) : c.key === "link" ? (
+                    ) : c.key === "id" ? (
                       <a
-                        className="sheet-external"
+                        className="sheet-id-link sheet-two-lines"
                         href={prozorro(t)}
-                        onClick={() => selectTender(t)}
                         target="_blank"
                         rel="noreferrer"
-                        aria-label={`Відкрити Prozorro: ${t.title}`}
+                        aria-label={`Відкрити Prozorro: ${t.id}`}
                       >
-                        <ExternalLink />
+                        {t.id}
                       </a>
+                    ) : c.key === "objects" ? (
+                      <ObjectsCell tender={t} zoom={zoom} />
                     ) : c.key === "score" ? (
                       <span
                         className={`sheet-score tone-${t.score >= 80 ? "green" : t.score >= 50 ? "yellow" : "red"}`}
@@ -791,61 +948,55 @@ export function TenderWorksheet({
                         {statusLabel(t.status)}
                       </span>
                     ) : c.key === "comment" ? (
-                      editingId === t.id ? (
-                        <textarea
-                          autoFocus
-                          rows={1}
-                          aria-label={`Коментар: ${t.title}`}
-                          className="sheet-comment"
-                          placeholder="Додати коментар…"
-                          value={comments[t.id] ?? t.comment ?? ""}
-                          onChange={(e) => autosave(t.id, e.target.value)}
-                          onFocus={() => setEditingId(t.id)}
-                          onBlur={(e) => {
-                            commitComment(t, e.target.value);
-                            setEditingId(null);
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter" && !e.shiftKey) {
-                              e.preventDefault();
-                              e.currentTarget.blur();
-                            }
-                            if (e.key === "Escape") e.currentTarget.blur();
-                          }}
-                        />
-                      ) : (
-                        <button
-                          className={`sheet-comment-preview ${t.comment ? "" : "is-empty"}`}
-                          aria-label={`Коментар: ${t.title}`}
-                          title={t.comment || "Додати коментар"}
-                          onFocus={() => setEditingId(t.id)}
-                          onClick={() => setEditingId(t.id)}
-                        >
-                          <span>{t.comment || "Додати коментар…"}</span>
-                        </button>
-                      )
-                    ) : c.key === "period" ? (
-                      (() => {
-                        const period = periodInfo(t, now);
-                        return (
-                          <div
-                            className={`sheet-period period-${period.tone}`}
-                            title={`${fullDate(period.start)} → ${period.end ? fullDate(period.end) : "—"}${t.publicationDateSource === "tender-id" ? " · дата публікації з ID (демо)" : ""}`}
+                      <div className="sheet-comment-wrap">
+                        <CommentPalette tender={t} />
+                        {editingId === t.id ? (
+                          <textarea
+                            autoFocus
+                            rows={1}
+                            aria-label={`Коментар: ${t.title}`}
+                            className="sheet-comment"
+                            placeholder="Додати коментар…"
+                            value={comments[t.id] ?? t.comment ?? ""}
+                            onChange={(e) => autosave(t.id, e.target.value)}
+                            onFocus={() => setEditingId(t.id)}
+                            onBlur={(e) => {
+                              commitComment(t, e.target.value);
+                              setEditingId(null);
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" && !e.shiftKey) {
+                                e.preventDefault();
+                                e.currentTarget.blur();
+                              }
+                              if (e.key === "Escape") e.currentTarget.blur();
+                            }}
+                          />
+                        ) : (
+                          <button
+                            className={`sheet-comment-preview ${t.comment ? "" : "is-empty"}`}
+                            aria-label={`Коментар: ${t.title}`}
+                            title={t.comment || "Додати коментар"}
+                            onFocus={() => setEditingId(t.id)}
+                            onClick={() => setEditingId(t.id)}
                           >
-                            <span>
-                              {shortDate(period.start)} <i>→</i>{" "}
-                              <strong>
-                                {period.end ? shortDate(period.end) : "—"}
-                              </strong>
-                            </span>
-                            <small>{period.label}</small>
-                          </div>
-                        );
-                      })()
+                            <span>{t.comment || "Додати коментар…"}</span>
+                          </button>
+                        )}
+                      </div>
+                    ) : c.key === "period" ? (
+                      <SubmissionCell tender={t} now={now} zoom={zoom} />
                     ) : c.key === "budget" ? (
-                      money(t.budget)
+                      amount(t.budget)
+                    ) : c.key === "unitPrice" && t.unitPrice !== undefined ? (
+                      amount(t.unitPrice)
                     ) : (
-                      <span title={String(t[c.key])}>{t[c.key]}</span>
+                      <DetailCell
+                        tender={t}
+                        column={c.key}
+                        now={now}
+                        zoom={zoom}
+                      />
                     )}
                   </td>
                 ))}

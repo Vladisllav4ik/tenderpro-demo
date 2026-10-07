@@ -2129,3 +2129,203 @@ body {
     --panel-scale: 1;
   }
 }
+/* Director worksheet: independent layouts, objects, manual color and timeline. */
+.sheet-detail-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #dce3ed;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.sheet-detail-toggle input {
+  accent-color: #0664ff;
+}
+.sheet-table .sheet-pinned {
+  box-shadow: 1px 0 0 #7c838d;
+}
+.sheet-table th.sheet-pinned {
+  background: #dce0e5;
+}
+.sheet-table .sheet-cell-comment {
+  padding-inline: calc(10px * var(--sheet-zoom));
+}
+.sheet-comment-wrap {
+  position: relative;
+  padding-right: calc(18px * var(--sheet-zoom));
+}
+.sheet-color-control {
+  position: absolute;
+  top: 1px;
+  right: -4px;
+  padding: 2px;
+  color: #697786;
+  border-radius: 3px;
+}
+.sheet-color-control:hover {
+  background: #ffffff88;
+}
+.sheet-color-control svg {
+  width: calc(12px * var(--sheet-zoom));
+  height: calc(12px * var(--sheet-zoom));
+}
+.sheet-color-palette {
+  position: relative;
+  inset: auto;
+  width: 265px;
+  padding: 13px;
+  background: white;
+}
+.sheet-color-palette p {
+  color: #3d4b5a;
+  font-size: 12px;
+  margin-bottom: 12px;
+}
+.sheet-color-palette > div {
+  display: flex;
+  gap: 5px;
+}
+.sheet-color-palette button {
+  position: static;
+  width: 28px;
+  height: 28px;
+  border: 1px solid #aab3bc;
+  color: #6f7b88;
+}
+.sheet-color-palette button[aria-pressed="true"] {
+  outline: 2px solid #54799d;
+  outline-offset: 2px;
+}
+.sheet-color-palette small {
+  display: block;
+  font-size: 10px;
+  color: #7d8791;
+  margin-top: 12px;
+}
+.sheet-two-lines {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+  line-height: 1.35;
+}
+.sheet-id-link {
+  color: #285c91;
+  font-size: calc(12px * var(--sheet-zoom));
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.sheet-objects-preview,
+.sheet-detail-preview {
+  width: 100%;
+  text-align: left;
+  font-size: inherit;
+}
+.sheet-objects-preview {
+  position: relative;
+  padding-right: calc(24px * var(--sheet-zoom));
+}
+.sheet-objects-preview small {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  background: #e4e9ef;
+  font-size: calc(10px * var(--sheet-zoom));
+  padding: 1px 3px;
+  border-radius: 3px;
+}
+.sheet-detail-popover {
+  width: min(560px, 85vw);
+  max-height: min(400px, 65vh);
+  overflow: auto;
+  padding: 16px;
+  color: #374657;
+}
+.sheet-detail-popover h3 {
+  font-size: inherit;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+.sheet-detail-popover li {
+  padding: 9px 0;
+  border-bottom: 1px solid #d3dae2;
+}
+.sheet-preserve-lines {
+  white-space: pre-line;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+.sheet-submission {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  align-items: flex-start;
+  text-align: left;
+  line-height: 1.2;
+  gap: calc(2px * var(--sheet-zoom));
+  font-size: calc(11px * var(--sheet-zoom));
+}
+.sheet-submission strong {
+  font-size: calc(12px * var(--sheet-zoom));
+  border-top: 1px solid #aeb6c0;
+  padding-top: calc(2px * var(--sheet-zoom));
+}
+.sheet-submission small {
+  font-size: calc(10px * var(--sheet-zoom));
+}
+.sheet-timeline dl > div {
+  padding: 9px 0 9px 12px;
+  border-left: 2px solid #9aaabb;
+}
+.sheet-timeline dt {
+  color: #7a8796;
+  font-size: 0.85em;
+}
+.sheet-timeline dd {
+  margin-top: 3px;
+}
+.sheet-timeline > small {
+  display: block;
+  margin-top: 12px;
+  color: #7a8796;
+}
+.sheet-auto-status.tone-orange {
+  background: #f2e3d1;
+  color: #916235;
+}
+.sheet-auto-status.tone-gray {
+  background: #e5e7ea;
+  color: #69727c;
+}
+.sheet-column-menu {
+  max-height: min(700px, 80vh);
+  overflow-y: auto;
+  width: 350px;
+}
+.sheet-column-menu label {
+  cursor: grab;
+}
+.sheet-column-menu label > span {
+  flex: 1;
+}
+.sheet-column-menu button[aria-pressed="true"] {
+  color: #25618e;
+  background: #dce8f3;
+}
+.sheet-column-menu input[type="number"] {
+  width: 50px;
+  height: 24px;
+  font-size: 11px;
+  border: 1px solid #bec7d1;
+  border-radius: 3px;
+  padding: 2px;
+}
+.sheet-column-menu label {
+  gap: 5px;
+}
+.sheet-column-menu {
+  width: 415px;
+  max-width: 92vw;
+}

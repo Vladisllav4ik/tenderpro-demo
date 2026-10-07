@@ -16,6 +16,40 @@ export type Tender = {
   publishedAt?: string;
   publicationDateSource?: "source" | "tender-id" | "loaded";
   comment?: string;
+  commentText?: string;
+  commentColor?:
+    "none" | "yellow" | "green" | "red" | "blue" | "purple" | "gray";
+  objects?: {
+    name: string;
+    quantity?: number;
+    unit?: string;
+    catalogue?: string;
+    brand?: string;
+  }[];
+  quantity?: number;
+  unit?: string;
+  unitPrice?: number;
+  submissionPeriod?: { start?: string; end?: string };
+  auctionPeriod?: { start?: string; end?: string };
+  deliveryPeriod?: { start?: string; end?: string; text?: string };
+  address?: string;
+  specialRequirements?: string[];
+  technicalRequirements?: string[];
+  qualificationRequirements?: string[];
+  lifecycle?: {
+    state?:
+      | "active"
+      | "cancelled"
+      | "awarded"
+      | "disqualified"
+      | "rejected"
+      | "closed";
+    participation?: "submitted" | "not-submitted";
+    decision?: "pending" | "won" | "lost";
+    submittedAt?: string;
+    updatedAt?: string;
+    reason?: string;
+  };
   commentUpdatedAt?: string;
   firstViewedAt?: string;
   manualStatusOverride?: boolean;
@@ -23,6 +57,8 @@ export type Tender = {
   completedAt?: string;
   completionType?: "success" | "failed";
   statusRecalcAt?: string;
+  statusOrigin?: "view" | "comment" | "lifecycle" | "deadline";
+  statusChangedAt?: string;
   history?: {
     at: string;
     kind: string;

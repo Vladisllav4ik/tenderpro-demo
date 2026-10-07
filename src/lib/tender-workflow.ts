@@ -1,10 +1,25 @@
+import {
+  deadlineDate,
+  submissionPeriod,
+  exactTimestamp,
+} from "./tender-period.ts";
+export { deadlineDate } from "./tender-period.ts";
 import type { Tender } from "./demo-data";
 
 export type TenderStatus =
   | "NEW"
   | "WAITING"
   | "IN_PROGRESS"
+  | "WAITING_DECISION"
   | "REJECTED"
+  | "NOT_SUBMITTED"
+  | "LOST"
+  | "CLOSED_NO_PARTICIPATION"
+  | "DISQUALIFIED"
+  | "STRONG_REJECTED"
+  | "CRITICAL_MISMATCH"
+  | "CANCELLED"
+  | "WON"
   | "COMPLETED_SUCCESS"
   | "COMPLETED_FAILED";
 export const statusOptions: {
@@ -16,19 +31,24 @@ export const statusOptions: {
   { value: "NEW", label: "Новий", tone: "blue" },
   { value: "WAITING", label: "Очікування", tone: "yellow" },
   { value: "IN_PROGRESS", label: "В роботі", tone: "green" },
-  { value: "REJECTED", label: "Не беремо", tone: "red" },
+  { value: "WAITING_DECISION", label: "Очікує рішення", tone: "yellow" },
+  { value: "REJECTED", label: "Не беремо", tone: "orange" },
+  { value: "NOT_SUBMITTED", label: "Не подали", tone: "orange" },
+  { value: "LOST", label: "Не перемогли", tone: "orange" },
   {
-    value: "COMPLETED_SUCCESS",
-    label: "Завершено",
-    tone: "green",
-    hint: "Успішно · demo",
+    value: "CLOSED_NO_PARTICIPATION",
+    label: "Закрито без участі",
+    tone: "orange",
   },
+  { value: "DISQUALIFIED", label: "Дискваліфіковано", tone: "red" },
+  { value: "STRONG_REJECTED", label: "Відхилено", tone: "red" },
   {
-    value: "COMPLETED_FAILED",
-    label: "Завершено",
+    value: "CRITICAL_MISMATCH",
+    label: "Критична невідповідність",
     tone: "red",
-    hint: "Неуспішно · demo",
   },
+  { value: "CANCELLED", label: "Скасовано замовником", tone: "gray" },
+  { value: "WON", label: "Перемога", tone: "green" },
 ];
 const legacy: Record<string, TenderStatus> = {
   Новий: "NEW",
@@ -38,10 +58,18 @@ const legacy: Record<string, TenderStatus> = {
   "На аналізі": "WAITING",
   "Ручний перегляд": "WAITING",
   "В роботі": "IN_PROGRESS",
-  Подано: "IN_PROGRESS",
-  Відхилено: "REJECTED",
+  Подано: "WAITING_DECISION",
+  Відхилено: "STRONG_REJECTED",
   "Не беремо": "REJECTED",
-  Завершено: "COMPLETED_SUCCESS",
+  Завершено: "CLOSED_NO_PARTICIPATION",
+  COMPLETED_SUCCESS: "CLOSED_NO_PARTICIPATION",
+  COMPLETED_FAILED: "CLOSED_NO_PARTICIPATION",
+  "Очікує рішення": "WAITING_DECISION",
+  Дискваліфіковано: "DISQUALIFIED",
+  "Не подали": "NOT_SUBMITTED",
+  "Не перемогли": "LOST",
+  "Скасовано замовником": "CANCELLED",
+  Перемога: "WON",
 };
 export function normalizeStatus(status: string): TenderStatus {
   return statusOptions.some((option) => option.value === status)
@@ -55,9 +83,29 @@ export const statusTone = (status: string) =>
   statusOptions.find((option) => option.value === normalizeStatus(status))!
     .tone;
 export const matchesStatus = (t: Tender, status: string) =>
-  normalizeStatus(t.status) === normalizeStatus(status);
+  normalizeStatus(t.status) === normalizeStatus(status) ||
+  (normalizeStatus(status) === "WAITING" &&
+    normalizeStatus(t.status) === "WAITING_DECISION") ||
+  (normalizeStatus(status) === "REJECTED" &&
+    [
+      "REJECTED",
+      "NOT_SUBMITTED",
+      "LOST",
+      "DISQUALIFIED",
+      "STRONG_REJECTED",
+      "CRITICAL_MISMATCH",
+    ].includes(normalizeStatus(t.status)));
 export const isCompleted = (status: string) =>
-  normalizeStatus(status).startsWith("COMPLETED_");
+  [
+    "NOT_SUBMITTED",
+    "LOST",
+    "CLOSED_NO_PARTICIPATION",
+    "DISQUALIFIED",
+    "STRONG_REJECTED",
+    "CRITICAL_MISMATCH",
+    "CANCELLED",
+    "WON",
+  ].includes(normalizeStatus(status));
 const kyivFormatter = new Intl.DateTimeFormat("en", {
   timeZone: "Europe/Kyiv",
   year: "numeric",
@@ -70,15 +118,6 @@ export function kyivToday(now = new Date()): string {
     .map((key) => parts.find((part) => part.type === key)!.value)
     .join("-");
 }
-export function deadlineDate(value: string): string | null {
-  const match = /^(\d{2})\.(\d{2})\.(\d{4})$/.exec(value);
-  if (!match) return null;
-  const iso = `${match[3]}-${match[2]}-${match[1]}`;
-  const date = new Date(iso + "T00:00:00Z");
-  return Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== iso
-    ? null
-    : iso;
-}
 export const shortDate = (iso: string) =>
   iso.slice(0, 10).split("-").reverse().slice(0, 2).join(".");
 export const fullDate = (iso: string) =>
@@ -89,7 +128,9 @@ export function normalizeTender(t: Tender, now = new Date()): Tender {
     ...t,
     status: normalizeStatus(t.status),
     manualStatusOverride: false,
-    comment: t.comment ?? "",
+    comment: t.commentText ?? t.comment ?? "",
+    commentText: t.commentText ?? t.comment ?? "",
+    commentColor: t.commentColor ?? "none",
     publishedAt: t.publishedAt ?? fromId ?? kyivToday(now),
     publicationDateSource:
       t.publicationDateSource ??
@@ -98,6 +139,9 @@ export function normalizeTender(t: Tender, now = new Date()): Tender {
 }
 export function newTender(t: Tender, now = new Date()): Tender {
   const {
+    lifecycle,
+    commentColor,
+    commentText,
     firstViewedAt,
     manualStatusOverride,
     previousStatus,
@@ -105,6 +149,8 @@ export function newTender(t: Tender, now = new Date()): Tender {
     completionType,
     commentUpdatedAt,
     statusRecalcAt,
+    statusOrigin,
+    statusChangedAt,
     history,
     documentStates,
     ...clean
@@ -144,10 +190,15 @@ export function recordEvent(
     ],
   };
 }
-function changeStatus(t: Tender, status: string, now: Date): Tender {
+function changeStatus(
+  t: Tender,
+  status: string,
+  now: Date,
+  origin: Tender["statusOrigin"] = "lifecycle",
+): Tender {
   if (t.status === status) return t;
   return recordEvent(
-    { ...t, status },
+    { ...t, status, statusOrigin: origin, statusChangedAt: now.toISOString() },
     "status",
     "Автоматично змінено статус",
     now,
@@ -165,7 +216,7 @@ export function viewTender(t: Tender, now = new Date()): Tender {
     now,
   );
   return matchesStatus(viewed, "NEW")
-    ? changeStatus(viewed, "WAITING", now)
+    ? changeStatus(viewed, "WAITING", now, "view")
     : viewed;
 }
 const positive = [
@@ -189,14 +240,35 @@ const negative = [
   "немає товару",
   "строки не підходять",
 ];
-export function classifyComment(
-  comment: string,
-): "IN_PROGRESS" | "REJECTED" | null {
+export function classifyComment(comment: string): TenderStatus | null {
   const text = comment
     .toLocaleLowerCase("uk-UA")
     .replace(/[’'`]/g, "'")
     .replace(/\s+/g, " ")
     .trim();
+  // Administrative outcomes require an explicit affirmative statement, not a
+  // question, quote, negation or hypothetical remark.
+  if (/[?？]|можливо|якщо|у разі|чи буде|ризик|можуть/.test(text)) return null;
+  const explicit = [
+    ["DISQUALIFIED", "дискваліфіковано"],
+    ["STRONG_REJECTED", "відхилено"],
+    ["CRITICAL_MISMATCH", "критична невідповідність"],
+    ["CANCELLED", "скасовано замовником"],
+    ["LOST", "не перемогли"],
+    ["NOT_SUBMITTED", "не подали"],
+    ["CLOSED_NO_PARTICIPATION", "закрито без участі"],
+  ] as const;
+  const outcomes = explicit.filter(
+    ([, phrase]) => text.includes(phrase) && !text.includes("не " + phrase),
+  );
+  if (outcomes.length > 1) return null;
+  if (outcomes.length === 1) return outcomes[0]![0];
+  if (
+    /подали пропозицію|пропозицію подано|очікує(?:мо)? рішення|очікуємо рішення/.test(
+      text,
+    )
+  )
+    return "WAITING_DECISION";
   // Contradictory or negated working phrases leave the current status intact.
   const contains = (phrase: string) =>
     new RegExp(`(^|[^\\p{L}\\p{N}])${phrase}($|[^\\p{L}\\p{N}])`, "u").test(
@@ -220,12 +292,13 @@ export function saveComment(
   now = new Date(),
   delay = STATUS_RECALC_DELAY_MS,
 ): Tender {
-  if (comment === (t.comment ?? "")) return t;
+  if (comment === (t.commentText ?? t.comment ?? "")) return t;
   const viewed = viewTender(t, now);
   return recordEvent(
     {
       ...viewed,
       comment,
+      commentText: comment,
       commentUpdatedAt: now.toISOString(),
       statusRecalcAt: new Date(now.getTime() + delay).toISOString(),
     },
@@ -234,62 +307,127 @@ export function saveComment(
     now,
   );
 }
+function hasSubmitted(t: Tender) {
+  if (t.lifecycle?.participation)
+    return t.lifecycle.participation === "submitted";
+  return (
+    t.lifecycle?.participation === "submitted" ||
+    !!t.lifecycle?.submittedAt ||
+    t.stage === "Подано" ||
+    normalizeStatus(t.status) === "WAITING_DECISION"
+  );
+}
+function lifecycleStatus(t: Tender): TenderStatus | null {
+  const life = t.lifecycle;
+  if (!life) return hasSubmitted(t) ? "WAITING_DECISION" : null;
+  if (life.state === "cancelled") return "CANCELLED";
+  if (life.state === "disqualified") return "DISQUALIFIED";
+  if (life.state === "rejected") return "STRONG_REJECTED";
+  if (life.decision === "won") return "WON";
+  if (life.decision === "lost") return "LOST";
+  if (life.state === "closed")
+    return hasSubmitted(t) ? "WAITING_DECISION" : "CLOSED_NO_PARTICIPATION";
+  if (
+    hasSubmitted(t) &&
+    (life.decision === "pending" || life.state === "awarded")
+  )
+    return "WAITING_DECISION";
+  return null;
+}
 export function recalculateTender(t: Tender, now = new Date()): Tender {
-  t = expireTender(t, now);
-  if (t.statusRecalcAt && Date.parse(t.statusRecalcAt) <= now.getTime()) {
-    const { statusRecalcAt, ...saved } = t;
-    const status = classifyComment(saved.comment ?? "");
-    t =
-      status && !isCompleted(saved.status)
-        ? changeStatus(saved, status, now)
-        : saved;
+  const due =
+    !t.statusRecalcAt || Date.parse(t.statusRecalcAt) <= now.getTime();
+  if (due) {
+    let sourceStatus = lifecycleStatus(t);
+    if (
+      sourceStatus &&
+      !isCompleted(sourceStatus) &&
+      t.statusOrigin === "comment" &&
+      isCompleted(t.status) &&
+      Date.parse(t.commentUpdatedAt ?? "") >
+        Date.parse(t.lifecycle?.updatedAt ?? "1970-01-01")
+    )
+      sourceStatus = null;
+    if (sourceStatus) t = changeStatus(t, sourceStatus, now);
+    if (t.statusRecalcAt) {
+      const { statusRecalcAt, ...saved } = t;
+      let status = classifyComment(saved.commentText ?? saved.comment ?? "");
+      if (
+        status === "WAITING_DECISION" &&
+        !hasSubmitted(saved) &&
+        !/подали (?:пропозицію|документи)|пропозицію подано/.test(
+          saved.commentText ?? saved.comment ?? "",
+        )
+      )
+        status = "WAITING";
+      if (hasSubmitted(saved) && status === "WAITING")
+        status = "WAITING_DECISION";
+      const administrative =
+        status &&
+        [
+          "DISQUALIFIED",
+          "STRONG_REJECTED",
+          "CRITICAL_MISMATCH",
+          "CANCELLED",
+          "LOST",
+        ].includes(status);
+      const sourceTerminal = sourceStatus && isCompleted(sourceStatus);
+      const openSubmission =
+        !isCompleted(saved.status) &&
+        !submissionPeriod(saved, now, kyivToday(now)).expired;
+      const eligible =
+        !sourceTerminal &&
+        ((!sourceStatus && openSubmission) ||
+          (administrative &&
+            hasSubmitted(saved) &&
+            !isCompleted(saved.status)));
+      t =
+        status && eligible
+          ? changeStatus(saved, status, now, "comment")
+          : saved;
+    }
   }
   return expireTender(t, now);
 }
+export function syncLifecycle(
+  t: Tender,
+  lifecycle: NonNullable<Tender["lifecycle"]>,
+  now = new Date(),
+  delay = STATUS_RECALC_DELAY_MS,
+): Tender {
+  return recordEvent(
+    {
+      ...t,
+      lifecycle: { ...t.lifecycle, ...lifecycle, updatedAt: now.toISOString() },
+      statusRecalcAt: new Date(now.getTime() + delay).toISOString(),
+    },
+    "source",
+    "Оновлено lifecycle дані джерела",
+    now,
+  );
+}
 export function expireTender(t: Tender, now = new Date()): Tender {
-  const end = deadlineDate(t.deadline);
-  // Source deadlines have no time: the whole final day is available in Kyiv.
-  if (!end || end >= kyivToday(now) || isCompleted(t.status)) return t;
+  const period = submissionPeriod(t, now, kyivToday(now));
+  if (!period.expired || isCompleted(t.status)) return t;
+  if (hasSubmitted(t))
+    return changeStatus(t, "WAITING_DECISION", now, "deadline");
   const previousStatus = normalizeStatus(t.status);
-  const success = previousStatus === "IN_PROGRESS";
   return {
-    ...changeStatus(t, success ? "COMPLETED_SUCCESS" : "COMPLETED_FAILED", now),
+    ...changeStatus(
+      t,
+      previousStatus === "IN_PROGRESS"
+        ? "NOT_SUBMITTED"
+        : "CLOSED_NO_PARTICIPATION",
+      now,
+      "deadline",
+    ),
     previousStatus,
-    completionType: success ? "success" : "failed",
+    completionType: "failed",
     completedAt: now.toISOString(),
   };
 }
 export function periodInfo(t: Tender, now = new Date()) {
-  const start = normalizeTender(t, now).publishedAt!.slice(0, 10);
-  const end = deadlineDate(t.deadline);
-  const days = end
-    ? Math.round(
-        (Date.parse(end + "T00:00:00Z") -
-          Date.parse(kyivToday(now) + "T00:00:00Z")) /
-          86400000,
-      )
-    : null;
-  return {
-    start,
-    end,
-    days,
-    label:
-      days === null
-        ? "Дата потребує уточнення"
-        : days < 0
-          ? "Строк завершено"
-          : days === 0
-            ? "Останній день"
-            : `${days} дн. залишилось`,
-    tone:
-      days !== null && days < 0
-        ? "expired"
-        : days !== null && days <= 3
-          ? "red"
-          : days !== null && days <= 7
-            ? "orange"
-            : "normal",
-  };
+  return submissionPeriod(t, now, kyivToday(now));
 }
 export function dataPeriod(tenders: Tender[], now = new Date()) {
   const dates = tenders

@@ -2,6 +2,7 @@ import {
   normalizeStatus,
   statusLabel,
   statusTone,
+  statusOptions,
 } from "@/lib/tender-workflow";
 import { Link } from "@tanstack/react-router";
 import { Sparkles, ChevronRight, X } from "lucide-react";
@@ -53,14 +54,7 @@ export function AI({ children = "AI" }: { children?: ReactNode }) {
 }
 export function Status({ children }: { children: ReactNode }) {
   const value = String(children);
-  const workflow = [
-    "NEW",
-    "WAITING",
-    "IN_PROGRESS",
-    "REJECTED",
-    "COMPLETED_SUCCESS",
-    "COMPLETED_FAILED",
-  ].includes(value);
+  const workflow = statusOptions.some((option) => option.value === value);
   if (workflow)
     return (
       <span className={`status tone-${statusTone(value)}`}>

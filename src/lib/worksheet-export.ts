@@ -5,6 +5,7 @@ import {
   worksheetFilename,
   worksheetValue,
   type ExportColumn,
+  commentFill,
 } from "./worksheet-model.ts";
 
 const colors: Record<string, { fill: string; text: string }> = {
@@ -12,6 +13,8 @@ const colors: Record<string, { fill: string; text: string }> = {
   green: { fill: "D1F6E5", text: "145B47" },
   yellow: { fill: "FFF0B5", text: "6A5017" },
   red: { fill: "FFE0E1", text: "A02B38" },
+  orange: { fill: "F8E4CD", text: "93602F" },
+  gray: { fill: "E4E7EB", text: "646D77" },
 };
 export async function createWorksheetWorkbook(
   items: Tender[],
@@ -23,8 +26,13 @@ export async function createWorksheetWorkbook(
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "TenderPro";
   workbook.created = now;
+  let frozen = 0;
+  for (const c of columns) {
+    if (c.pinned ?? frozen < 2) frozen++;
+    else break;
+  }
   const sheet = workbook.addWorksheet("Тендери", {
-    views: [{ state: "frozen", xSplit: 2, ySplit: 1 }],
+    views: [{ state: "frozen", xSplit: frozen, ySplit: 1 }],
   });
   sheet.columns = columns.map((c) => ({
     header: c.label === "↗" ? "Посилання" : c.label,
@@ -40,8 +48,8 @@ export async function createWorksheetWorkbook(
   items.forEach((t, index) => {
     const row = sheet.addRow(
       columns.map((c) =>
-        c.key === "link"
-          ? { text: "↗ Prozorro", hyperlink: prozorroLink(t) }
+        c.key === "id"
+          ? { text: t.id, hyperlink: prozorroLink(t) }
           : worksheetValue(t, c.key, index, now),
       ),
     );
@@ -56,15 +64,15 @@ export async function createWorksheetWorkbook(
       cell.alignment = {
         vertical: "middle",
         wrapText: true,
-        horizontal: ["number", "score", "link"].includes(column.key)
+        horizontal: ["number", "score", "quantity", "unit"].includes(column.key)
           ? "center"
           : "left",
       };
       cell.border = {
-        top: { style: "thin", color: { argb: "FFE0E7F0" } },
-        bottom: { style: "thin", color: { argb: "FFE0E7F0" } },
-        left: { style: "thin", color: { argb: "FFE0E7F0" } },
-        right: { style: "thin", color: { argb: "FFE0E7F0" } },
+        top: { style: "thin", color: { argb: "FF8B919A" } },
+        bottom: { style: "thin", color: { argb: "FF8B919A" } },
+        left: { style: "thin", color: { argb: "FF8B919A" } },
+        right: { style: "thin", color: { argb: "FF8B919A" } },
       };
       let color =
         column.key === "status"
@@ -83,6 +91,12 @@ export async function createWorksheetWorkbook(
       };
       if (color)
         cell.font = { ...cell.font, color: { argb: `FF${color.text}` } };
+      if (column.key === "comment" && commentFill(t.commentColor))
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "FF" + commentFill(t.commentColor) },
+        };
       if (column.key === "period") {
         const period = periodInfo(t, now);
         cell.font = {
@@ -100,13 +114,14 @@ export async function createWorksheetWorkbook(
           },
         };
       }
-      if (column.key === "link")
+      if (column.key === "id")
         cell.font = {
           ...cell.font,
           color: { argb: "FF0758D5" },
           underline: true,
         };
-      if (column.key === "budget") cell.numFmt = '#,##0" грн"';
+      if (column.key === "budget" || column.key === "unitPrice")
+        cell.numFmt = '#,##0.##" ₴"';
     });
   });
   sheet.getRow(1).eachCell((cell) => {

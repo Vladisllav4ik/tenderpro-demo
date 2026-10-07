@@ -16,6 +16,7 @@ import {
   recalculateTender,
   recordEvent,
   STATUS_RECALC_DELAY_MS,
+  syncLifecycle as applyLifecycle,
   expireTender,
   isCompleted,
 } from "./tender-workflow";
@@ -71,6 +72,11 @@ type Ctx = {
   ) => void;
   viewTender: (id: string) => void;
   saveComment: (id: string, comment: string) => void;
+  setCommentColor: (
+    id: string,
+    color: NonNullable<Tender["commentColor"]>,
+  ) => void;
+  syncLifecycle: (id: string, data: NonNullable<Tender["lifecycle"]>) => void;
   now: Date;
   ready: boolean;
 };
@@ -181,6 +187,29 @@ export function DemoProvider({ children }: { children: ReactNode }) {
       localStorage.setItem("tenderpro-demo", JSON.stringify(next));
     } catch {}
   };
+  const setCommentColor = (
+    id: string,
+    color: NonNullable<Tender["commentColor"]>,
+  ) =>
+    setState((s) => ({
+      ...s,
+      tenders: s.tenders.map((t) =>
+        t.id === id
+          ? recordEvent(
+              { ...t, commentColor: color },
+              "comment-color",
+              "Змінено колір коментаря",
+            )
+          : t,
+      ),
+    }));
+  const syncLifecycle = (id: string, data: NonNullable<Tender["lifecycle"]>) =>
+    setState((s) => ({
+      ...s,
+      tenders: s.tenders.map((t) =>
+        t.id === id ? applyLifecycle(t, data, new Date(), validDelay) : t,
+      ),
+    }));
   const documentAction = (
     id: string,
     name: string,
@@ -214,6 +243,8 @@ export function DemoProvider({ children }: { children: ReactNode }) {
         documentAction,
         viewTender,
         saveComment,
+        setCommentColor,
+        syncLifecycle,
         now,
         ready,
       }}
