@@ -1,5 +1,7 @@
 # TenderPro demo
 
+Agent 2 тепер має серверний Responses API adapter для тесту одного тендера з preview без запису. Model: `gpt-5.4-mini`, default mode: mock. Локальний запуск і перемикання OpenAI: [AGENT2_OPENAI.md](AGENT2_OPENAI.md).
+
 Поточний етап — MVP: демо-вхід → Тендери → серверні mock-агенти → таблиця/картка → персональні налаштування. USER бачить лише Тендери й Налаштування; ADMIN також AI Агенти. Опис архітектури та меж демо: [MVP_ARCHITECTURE.md](MVP_ARCHITECTURE.md).
 
 Таблиця тендерів та демонстраційна AI-обробка. React 19, TanStack Start, Vite 8 та Nitro.
@@ -31,7 +33,7 @@ npm run preview -- --host 127.0.0.1 --port 3002
 3. Framework: автоматичне визначення TanStack Start. Build Command: `npm run build`; Install Command: `npm ci`; Node.js: `22.x`.
 4. Залишити Output Directory без ручного override: Nitro генерує повний Vercel Build Output, включно з SSR Function і маршрутизацією.
 
-Для демо не потрібні ключі AI, бази даних або інші environment variables. Конфігурація закріплює Nitro preset `vercel` та Node.js 22.
+Для mock-демо не потрібні ключі AI чи база даних. Реальний тест Agent 2 потребує серверного `OPENAI_API_KEY` у локальному `.env` та `npm run dev`. Production запити з демо-ADMIN заблоковані до закритої авторизації. Конфігурація закріплює Nitro preset `vercel` та Node.js 22.
 
 Офіційна документація: [TanStack Start / Lovable на Vercel](https://vercel.com/docs/frameworks/full-stack/tanstack-start).
 

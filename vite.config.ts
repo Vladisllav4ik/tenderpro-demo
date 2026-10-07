@@ -7,4 +7,17 @@ import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 export default defineConfig({
   tanstackStart: { server: { entry: "server" } },
   nitro: { preset: "vercel" },
+  vite: {
+    server: {
+      fs: {
+        deny: [
+          ".env",
+          ".env.*",
+          "*.{crt,pem}",
+          "**/.git/**",
+          "**/.tenderpro-local/**",
+        ],
+      },
+    },
+  },
 });

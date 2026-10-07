@@ -6,6 +6,7 @@ export type AgentConfig = {
   description: string;
   enabled: boolean;
   model: string;
+  provider?: "mock" | "openai";
   systemPrompt: string;
   version: number;
   promptVersion: string;
@@ -17,6 +18,8 @@ export type AgentConfig = {
   };
 };
 export type AgentLog = {
+  id?: string;
+  runId?: string;
   agentId: AgentId;
   at: string;
   processed: number;
@@ -24,7 +27,23 @@ export type AgentLog = {
   estimatedUsage: number;
   message: string;
   accountId: string;
-  mock: true;
+  mock: boolean;
+  provider?: "mock" | "openai";
+  tenderId?: string;
+  model?: string;
+  timestamp?: string;
+  durationMs?: number;
+  inputTokens?: number | null;
+  outputTokens?: number | null;
+  totalTokens?: number | null;
+  cachedInputTokens?: number | null;
+  reasoningTokens?: number | null;
+  status?: "success" | "error";
+  errorMessage?: string;
+  requestId?: string;
+  responseId?: string;
+  attempt?: number;
+  promptVersion?: string;
 };
 export interface AgentConfigRepository {
   list(): AgentConfig[];
