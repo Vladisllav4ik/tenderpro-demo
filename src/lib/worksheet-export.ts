@@ -78,7 +78,15 @@ export async function createWorksheetWorkbook(
         column.key === "status"
           ? colors[statusTone(t.status)]
           : column.key === "score"
-            ? colors[t.score >= 80 ? "green" : t.score >= 50 ? "yellow" : "red"]
+            ? colors[
+                t.analysisPending
+                  ? "gray"
+                  : t.score >= 80
+                    ? "green"
+                    : t.score >= 50
+                      ? "yellow"
+                      : "red"
+              ]
             : undefined;
       if (column.key === "topCategory" || column.key === "number")
         color = { fill: "F0F3F7", text: "53637C" };

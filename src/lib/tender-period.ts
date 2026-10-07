@@ -28,7 +28,7 @@ export function exactTimestamp(value?: string): number | null {
   return Number.isFinite(stamp) ? stamp : null;
 }
 export function formatPeriodDate(value?: string): string {
-  if (!value) return "Не зазначено";
+  if (!value) return "-";
   const stamp = exactTimestamp(value);
   if (stamp !== null)
     return new Intl.DateTimeFormat("uk-UA", {
@@ -50,7 +50,7 @@ export function periodRange(period?: {
   end?: string;
   text?: string;
 }): string {
-  if (!period) return "Не зазначено";
+  if (!period) return "-";
   if (period.text?.trim()) return period.text.trim().replace(/\s+/g, " ");
   if (period.start && period.end && period.start !== period.end)
     return `${formatPeriodDate(period.start)} → ${formatPeriodDate(period.end)}`;
@@ -58,7 +58,7 @@ export function periodRange(period?: {
     ? formatPeriodDate(period.start)
     : period.end
       ? `До ${formatPeriodDate(period.end)}`
-      : "Не зазначено";
+      : "-";
 }
 export function submissionPeriod(t: Tender, now: Date, today: string) {
   const start =
@@ -83,7 +83,7 @@ export function submissionPeriod(t: Tender, now: Date, today: string) {
   const remaining = timestamp !== null ? timestamp - now.getTime() : null;
   const days =
     remaining !== null
-      ? Math.max(0, Math.ceil(remaining / 86400000))
+      ? Math.max(0, Math.floor(remaining / 86400000))
       : calendarDays;
   const expired =
     remaining !== null ? remaining <= 0 : days !== null && days < 0;
@@ -105,8 +105,16 @@ export function submissionPeriod(t: Tender, now: Date, today: string) {
     expired,
     label,
     precise: timestamp !== null,
-    startLabel: formatPeriodDate(start),
-    endLabel: formatPeriodDate(end ?? undefined),
+    startLabel:
+      exactTimestamp(start) !== null
+        ? formatPeriodDate(start)
+        : `${formatPeriodDate(start)} --:--`,
+    endLabel:
+      timestamp !== null
+        ? formatPeriodDate(end ?? undefined)
+        : end
+          ? `${formatPeriodDate(end)} --:--`
+          : "-",
     tone: expired
       ? "expired"
       : days !== null && days <= 3

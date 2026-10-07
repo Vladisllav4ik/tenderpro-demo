@@ -1,3 +1,6 @@
+import { TableRangePicker } from "./table-range-picker";
+import { WorksheetImport } from "./worksheet-import";
+import type { TableRange } from "@/lib/table-range";
 import {
   CommentPalette,
   ObjectsCell,
@@ -40,6 +43,8 @@ import {
   Wrench,
   Briefcase,
   Package,
+  Download,
+  Upload,
   GripVertical,
   Pin,
 } from "lucide-react";
@@ -62,22 +67,22 @@ import {
   statusTone,
   periodInfo,
   shortDate,
-  fullDate,
 } from "@/lib/tender-workflow";
 import {
   sheetColumns as columns,
   categoryLabel,
-  periodCaption,
   prozorroLink as prozorro,
   type ColumnKey,
   type TableLayout,
   type TableSort,
   defaultLayout,
+  migrateLayout,
   validLayout,
   layoutColumns,
   compactOrder,
   detailedOrder,
   tableTender,
+  worksheetPreview,
   worksheetSortValue,
   worksheetValue,
   commentFill,
@@ -99,18 +104,20 @@ export function TenderWorksheet({
   total,
   query,
   onQueryChange,
-  viewTabs,
+  dataRange,
+  resolvedRange,
+  onRangeChange,
   filters,
-  actions,
   details,
 }: {
   items: Tender[];
   total: number;
   query: string;
   onQueryChange: (value: string) => void;
-  viewTabs: ReactNode;
+  dataRange: TableRange;
+  resolvedRange: { from: string; to: string };
+  onRangeChange: (range: TableRange) => void;
   filters: ReactNode;
-  actions: ReactNode;
   details: (t: Tender) => DetailFlow;
 }) {
   const navigate = useNavigate();
@@ -125,6 +132,7 @@ export function TenderWorksheet({
   );
   const [focus, setFocus] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [viewport, setViewport] = useState(1366);
   const [showAI, setShowAI] = useWorkspaceState(
     "aiVisible",
@@ -146,6 +154,7 @@ export function TenderWorksheet({
       "compactLayout",
       defaultLayout("compact"),
       validLayout,
+      migrateLayout,
     );
   const [detailedLayout, setDetailedLayout, detailedReady] =
     useWorkspaceState<TableLayout>(
@@ -176,14 +185,6 @@ export function TenderWorksheet({
   );
   // Drafts autosave independently from delayed status processing.
   const [comments, setComments] = useState<Record<string, string>>({});
-  const [page, setPage] = useWorkspaceState(
-    "page",
-    1,
-    (v) => Number.isInteger(v) && Number(v) > 0,
-  );
-  const [pageSize, setPageSize] = useWorkspaceState("rowsPerPage", 50, (v) =>
-    [25, 50, 100].includes(v as number),
-  );
   const scroller = useRef<HTMLDivElement>(null);
   const selected = state.tenders.find((t) => t.id === selectedId) ?? items[0];
   const editing =
@@ -191,15 +192,23 @@ export function TenderWorksheet({
       ? state.tenders.find((t) => t.id === editingId)
       : undefined;
   const displayItems = editing ? [...items, editing] : items;
-  const flow = selected ? details(selected) : null;
+  const flow = selected ? worksheetPreview(selected, details(selected)) : null;
   const allowedOrder = detailed ? detailedOrder : compactOrder;
   const optionalOrder = [
     ...new Set([...columnState.order, ...allowedOrder]),
   ].filter(
     (k) =>
-      allowedOrder.includes(k) && !["number", "comment", "status"].includes(k),
+      allowedOrder.includes(k) &&
+      !["number", "comment", "topCategory", "score", "status"].includes(k),
   );
-  const orderedColumns = ["number", "comment", ...optionalOrder, "status"]
+  const orderedColumns = [
+    "number",
+    "comment",
+    ...optionalOrder,
+    "topCategory",
+    "score",
+    "status",
+  ]
     .map((key) => columns.find((c) => c.key === key)!)
     .filter(Boolean);
   const activeColumns = layoutColumns(
@@ -271,13 +280,17 @@ export function TenderWorksheet({
     [order[index], order[target]] = [order[target]!, order[index]!];
     setColumnState((s) => ({
       ...s,
-      order: ["number", "comment", ...order, "status"],
+      order: ["number", "comment", ...order, "topCategory", "score", "status"],
     }));
   };
   const reorderColumn = (source: ColumnKey, target: ColumnKey) => {
     if (
-      ["number", "comment", "status"].includes(source) ||
-      ["number", "comment", "status"].includes(target) ||
+      ["number", "comment", "topCategory", "score", "status"].includes(
+        source,
+      ) ||
+      ["number", "comment", "topCategory", "score", "status"].includes(
+        target,
+      ) ||
       source === target
     )
       return;
@@ -285,7 +298,7 @@ export function TenderWorksheet({
     order.splice(order.indexOf(target), 0, source);
     setColumnState((s) => ({
       ...s,
-      order: ["number", "comment", ...order, "status"],
+      order: ["number", "comment", ...order, "topCategory", "score", "status"],
     }));
   };
   const togglePin = (key: ColumnKey) =>
@@ -345,10 +358,7 @@ export function TenderWorksheet({
       }),
     [tableItems, sort, comments, now],
   );
-  const pages = Math.max(1, Math.ceil(sorted.length / pageSize));
-  const currentPage = Math.min(page, pages);
-  const start = (currentPage - 1) * pageSize;
-  const rows = sorted.slice(start, start + pageSize);
+  const rows = sorted;
   useEffect(() => {
     const update = () => {
       const active = !!document.fullscreenElement;
@@ -470,10 +480,6 @@ export function TenderWorksheet({
     } finally {
       setExporting(false);
     }
-  };
-  const changePage = (value: number) => {
-    setPage(value);
-    scroller.current?.scrollTo({ top: 0 });
   };
 
   return (
@@ -600,7 +606,15 @@ export function TenderWorksheet({
             {orderedColumns.map((c, index) => (
               <label
                 key={c.key}
-                draggable={!["number", "comment", "status"].includes(c.key)}
+                draggable={
+                  ![
+                    "number",
+                    "comment",
+                    "topCategory",
+                    "score",
+                    "status",
+                  ].includes(c.key)
+                }
                 onDragStart={(e) => {
                   draggingColumn.current = c.key;
                   e.dataTransfer.setData("text/plain", c.key);
@@ -657,7 +671,12 @@ export function TenderWorksheet({
                   <button
                     aria-label={`Закріпити ${c.label}`}
                     aria-pressed={columnState.pinned.includes(c.key)}
-                    disabled={["number", "comment"].includes(c.key)}
+                    disabled={[
+                      "number",
+                      "comment",
+                      "topCategory",
+                      "score",
+                    ].includes(c.key)}
                     onClick={(e) => {
                       e.preventDefault();
                       togglePin(c.key);
@@ -666,7 +685,13 @@ export function TenderWorksheet({
                     <Pin size={12} />
                   </button>
                 )}
-                {!["number", "comment", "status"].includes(c.key) && (
+                {![
+                  "number",
+                  "comment",
+                  "topCategory",
+                  "score",
+                  "status",
+                ].includes(c.key) && (
                   <>
                     <button
                       aria-label={`Перемістити ${c.label} ліворуч`}
@@ -717,11 +742,19 @@ export function TenderWorksheet({
           title="Оновити вигляд таблиці"
           onClick={() => {
             setSort({ key: "score", direction: -1 });
-            setPage(1);
             scroller.current?.scrollTo({ top: 0, left: 0 });
           }}
         >
           <RotateCw />
+        </button>
+        <button
+          className="sheet-tool sheet-icon sheet-excel"
+          aria-label="Експортувати таблицю XLSX"
+          title="Експортувати поточний вигляд · XLSX"
+          onClick={exportExcel}
+          disabled={exporting || !items.length}
+        >
+          <FileSpreadsheet />
         </button>
         <Popover>
           <PopoverTrigger asChild>
@@ -733,35 +766,53 @@ export function TenderWorksheet({
             </button>
           </PopoverTrigger>
           <PopoverContent className="sheet-menu sheet-actions" align="end">
-            <p className="sheet-menu-heading">Імпорт та дії</p>
-            {actions}
+            <p className="sheet-menu-heading">IMPORT / EXPORT</p>
+            <button
+              className="sheet-action-item"
+              onClick={async () => {
+                try {
+                  const { downloadImportTemplate } =
+                    await import("@/lib/excel-import");
+                  await downloadImportTemplate();
+                  toast.success("Шаблон Excel готовий");
+                } catch {
+                  toast.error("Не вдалося створити шаблон");
+                }
+              }}
+            >
+              <Download size={16} />
+              Завантажити шаблон Excel
+            </button>
+            <button
+              className="sheet-action-item"
+              onClick={() => setImportOpen(true)}
+            >
+              <Upload size={16} />
+              Імпортувати Excel
+            </button>
+            <button
+              className="sheet-action-item"
+              onClick={exportExcel}
+              disabled={exporting || !items.length}
+            >
+              <FileSpreadsheet size={16} />
+              Експортувати таблицю
+            </button>
           </PopoverContent>
         </Popover>
       </header>
-      <div className="sheet-viewbar">
-        <div className="sheet-views">{viewTabs}</div>
+      <WorksheetImport open={importOpen} onOpenChange={setImportOpen} />
+      <div className="sheet-viewbar sheet-rangebar">
+        <TableRangePicker
+          range={dataRange}
+          resolved={resolvedRange}
+          onChange={onRangeChange}
+        />
         {fullscreenPreferred && !focus && (
           <button className="sheet-restore-fullscreen" onClick={fullscreen}>
             Повернути повноекранний режим
           </button>
         )}
-        <div className="sheet-data-tools">
-          {" "}
-          <span
-            className="sheet-data-period"
-            title="Дата публікації у demo визначена з ID тендера"
-          >
-            {periodCaption(items, now)}
-          </span>
-          <button
-            className="sheet-tool sheet-excel"
-            onClick={exportExcel}
-            disabled={exporting || !items.length}
-          >
-            <FileSpreadsheet />
-            {exporting ? "Експорт…" : "Excel"}
-          </button>
-        </div>
       </div>
       <div
         ref={scroller}
@@ -792,7 +843,15 @@ export function TenderWorksheet({
                   scope="col"
                   className={`sheet-head-${c.key} ${pinnedOffsets.has(c.key) ? "sheet-pinned" : ""}`}
                   style={cellStyle(c.key)}
-                  draggable={!["number", "comment", "status"].includes(c.key)}
+                  draggable={
+                    ![
+                      "number",
+                      "comment",
+                      "topCategory",
+                      "score",
+                      "status",
+                    ].includes(c.key)
+                  }
                   onDragStart={(e) => {
                     draggingColumn.current = c.key;
                     e.dataTransfer.setData("text/plain", c.key);
@@ -886,7 +945,7 @@ export function TenderWorksheet({
                     className={`sheet-cell-${c.key} ${pinnedOffsets.has(c.key) ? "sheet-pinned" : ""}`}
                   >
                     {c.key === "number" ? (
-                      start + index + 1
+                      index + 1
                     ) : c.key === "title" ? (
                       <button
                         className="sheet-title"
@@ -931,6 +990,8 @@ export function TenderWorksheet({
                       </a>
                     ) : c.key === "objects" ? (
                       <ObjectsCell tender={t} zoom={zoom} />
+                    ) : c.key === "score" && t.analysisPending ? (
+                      <span title="AI аналіз ще не виконано">-</span>
                     ) : c.key === "score" ? (
                       <span
                         className={`sheet-score tone-${t.score >= 80 ? "green" : t.score >= 50 ? "yellow" : "red"}`}
@@ -1015,50 +1076,9 @@ export function TenderWorksheet({
       </div>
       <footer className="sheet-footer">
         <span>
-          Показано {rows.length ? start + 1 : 0}–{start + rows.length} з{" "}
-          {sorted.length}
+          Показано {sorted.length} тендерів
           <small>Автозбереження · статус перераховується окремо</small>
         </span>
-        <div className="sheet-pagination">
-          <select
-            aria-label="Рядків на сторінці"
-            value={pageSize}
-            onChange={(e) => {
-              setPageSize(Number(e.target.value));
-              setPage(1);
-            }}
-          >
-            {[25, 50, 100].map((size) => (
-              <option key={size} value={size}>
-                {size} на сторінці
-              </option>
-            ))}
-          </select>
-          <button
-            aria-label="Попередня сторінка"
-            disabled={currentPage === 1}
-            onClick={() => changePage(currentPage - 1)}
-          >
-            <ChevronLeft />
-          </button>
-          {Array.from({ length: pages }, (_, i) => i + 1).map((value) => (
-            <button
-              key={value}
-              className={currentPage === value ? "is-active" : ""}
-              aria-current={currentPage === value ? "page" : undefined}
-              onClick={() => changePage(value)}
-            >
-              {value}
-            </button>
-          ))}
-          <button
-            aria-label="Наступна сторінка"
-            disabled={currentPage === pages}
-            onClick={() => changePage(currentPage + 1)}
-          >
-            <ChevronRight />
-          </button>
-        </div>
       </footer>
       <button
         className={`sheet-ai-tab ${aiOpen ? "is-open" : ""}`}
@@ -1108,7 +1128,9 @@ export function TenderWorksheet({
                     ["Категорія", selected.topCategory],
                     [
                       "AI score",
-                      `${selected.score}/100 · ${selected.priority}`,
+                      selected.analysisPending
+                        ? "-"
+                        : `${selected.score}/100 · ${selected.priority}`,
                     ],
                   ].map(([label, value]) => (
                     <div key={label}>

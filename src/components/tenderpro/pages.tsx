@@ -1,3 +1,9 @@
+import {
+  defaultRange,
+  validRange,
+  resolveRange,
+  inPublicationRange,
+} from "@/lib/table-range";
 import { useWorkspaceState } from "@/lib/workspace-state";
 import { TenderCard } from "./tender-card";
 import { useEffect, useRef, useMemo, useState } from "react";
@@ -717,11 +723,16 @@ export function Tenders() {
         (k) => typeof (v as Record<string, unknown>)[k] === "string",
       ),
   );
-  const { tab, q, priority, category, budget, date, status } = filtersState;
+  const [dataRange, setDataRange] = useWorkspaceState(
+    "dateRange",
+    defaultRange,
+    validRange,
+  );
+  const resolvedRange = resolveRange(dataRange, state.tenders, now);
+  const { q, priority, category, budget, date, status } = filtersState;
   const setFilter = (key: keyof typeof filtersState) => (value: string) =>
     setFiltersState((s) => ({ ...s, [key]: value }));
-  const setTab = setFilter("tab"),
-    setQ = setFilter("q"),
+  const setQ = setFilter("q"),
     setPriority = setFilter("priority"),
     setCategory = setFilter("category"),
     setBudget = setFilter("budget"),
@@ -742,25 +753,26 @@ export function Tenders() {
                   : t.budget >= 15000000)) &&
             (status === "all" ||
               normalizeStatus(t.status) === normalizeStatus(status)) &&
-            (tab === "Усі" ||
-              (tab === "Нові"
-                ? matchesStatus(t, "Новий")
-                : tab === "Очікування"
-                  ? matchesStatus(t, "Проаналізовано")
-                  : tab === "В роботі"
-                    ? matchesStatus(t, "В роботі")
-                    : tab === "Завершені"
-                      ? isCompleted(t.status)
-                      : matchesStatus(t, "Відхилено"))) &&
+            inPublicationRange(t, resolvedRange) &&
             matchesDeadline(t.deadline, date) &&
             `${t.id} ${t.title} ${t.customer}`
               .toLowerCase()
               .includes(q.toLowerCase()),
         )
         .sort((a, b) => b.score - a.score),
-    [state.tenders, q, priority, category, budget, date, status, tab, now],
+    [
+      state.tenders,
+      q,
+      priority,
+      category,
+      budget,
+      date,
+      status,
+      resolvedRange.from,
+      resolvedRange.to,
+      now,
+    ],
   );
-  const working = state.tenders.filter((t) => matchesStatus(t, "В роботі"));
   return (
     <TenderWorksheet
       items={items}
@@ -768,43 +780,9 @@ export function Tenders() {
       query={q}
       onQueryChange={setQ}
       details={(t) => detailFlow(t, specs, documents)}
-      viewTabs={
-        <Tabs value={tab} onValueChange={setTab}>
-          <TabsList className="sheet-views-list">
-            {[
-              "Усі",
-              "Нові",
-              "Очікування",
-              "В роботі",
-              "Не беремо",
-              "Завершені",
-            ].map((x) => (
-              <TabsTrigger key={x} value={x}>
-                {x}
-                <span className="ml-2 text-[10px] text-muted-foreground">
-                  {x === "Усі"
-                    ? state.tenders.length
-                    : x === "Нові"
-                      ? state.tenders.filter((t) => matchesStatus(t, "Новий"))
-                          .length
-                      : x === "Очікування"
-                        ? state.tenders.filter((t) =>
-                            matchesStatus(t, "Проаналізовано"),
-                          ).length
-                        : x === "В роботі"
-                          ? working.length
-                          : x === "Завершені"
-                            ? state.tenders.filter((t) => isCompleted(t.status))
-                                .length
-                            : state.tenders.filter((t) =>
-                                matchesStatus(t, "REJECTED"),
-                              ).length}
-                </span>
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
-      }
+      dataRange={dataRange}
+      resolvedRange={resolvedRange}
+      onRangeChange={setDataRange}
       filters={
         <div className="sheet-filters">
           {" "}
@@ -855,12 +833,15 @@ export function Tenders() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Будь-яка дата</SelectItem>
-              <SelectItem value="week">Цей тиждень</SelectItem>
-              <SelectItem value="month">Цей місяць</SelectItem>
+              <SelectItem value="all">Будь-який строк подання</SelectItem>
+              <SelectItem value="week">Подання цього тижня</SelectItem>
+              <SelectItem value="month">Подання цього місяця</SelectItem>
             </SelectContent>
           </Select>
-          <Select value={status} onValueChange={setStatus}>
+          <Select
+            value={status === "all" ? "all" : normalizeStatus(status)}
+            onValueChange={setStatus}
+          >
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
@@ -875,15 +856,6 @@ export function Tenders() {
             </SelectContent>
           </Select>
         </div>
-      }
-      actions={
-        <>
-          <Inbox importOnly />
-          <DemoButton variant="outline">
-            <Download />
-            Експорт
-          </DemoButton>
-        </>
       }
     />
   );

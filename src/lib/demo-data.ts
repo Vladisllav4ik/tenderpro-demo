@@ -3,12 +3,15 @@ export type Tender = {
   title: string;
   customer: string;
   category: string;
-  topCategory: "Техніка" | "Запчастини" | "Обладнання" | "Сервіс і роботи";
+  topCategory:
+    "Техніка" | "Запчастини" | "Обладнання" | "Сервіс і роботи" | "Інше";
   budget: number;
   deadline: string;
   region: string;
   priority: "A" | "B" | "C";
   score: number;
+  analysisPending?: boolean;
+  importSource?: "excel";
   status: string;
   manager: string;
   stage: string;
@@ -25,6 +28,7 @@ export type Tender = {
     unit?: string;
     catalogue?: string;
     brand?: string;
+    characteristics?: string[];
   }[];
   quantity?: number;
   unit?: string;

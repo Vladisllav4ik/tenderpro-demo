@@ -83,9 +83,12 @@ test("requirements retain distinct technical/special/qualification sources", () 
   const t = tableTender(tenders[3], flow);
   assert.equal(t.quantity, 2);
   assert.match(worksheetValue(t, "technicalRequirements", 0, now), /XCMG/);
-  assert.deepEqual(t.specialRequirements, ["Сервісний центр"]);
+  assert.deepEqual(t.specialRequirements, [
+    "Сервісний центр",
+    "Гарантія 12 міс",
+  ]);
   assert.deepEqual(t.qualificationRequirements, ["Досвід поставки"]);
-  assert.equal(worksheetValue(t, "address", 0, now), "Не зазначено");
+  assert.equal(worksheetValue(t, "address", 0, now), "-");
 });
 test("delivery accepts date, range, datetime and normalized text", () => {
   assert.equal(periodRange({ end: "2026-11-30" }), "До 30.11.2026");

@@ -302,3 +302,18 @@ test("administrative context after submission remains stable until fresher lifec
   );
   assert.equal(closed.status, "WAITING_DECISION");
 });
+
+test("known submission times render the requested week duration and sub-day countdown", () => {
+  const t = {
+    ...tenders[1],
+    submissionPeriod: {
+      start: "2026-10-07T06:00:00Z",
+      end: "2026-10-14T15:00:00Z",
+    },
+  };
+  assert.match(periodInfo(t, new Date("2026-10-07T06:00:00Z")).label, /7 дн/);
+  assert.equal(
+    periodInfo(t, new Date("2026-10-14T08:25:00Z")).label,
+    "6 год 35 хв",
+  );
+});

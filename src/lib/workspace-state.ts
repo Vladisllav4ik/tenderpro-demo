@@ -20,13 +20,15 @@ export function useWorkspaceState<T>(
   name: string,
   fallback: T,
   validate: (value: unknown) => boolean = () => true,
+  migrate: (value: T) => T = (value) => value,
 ) {
   const [value, setValue] = useState(fallback);
   const [ready, setReady] = useState(false);
   const validator = useRef(validate);
+  const migrator = useRef(migrate);
   useEffect(() => {
     const saved = readWorkspace(name, fallback);
-    if (validator.current(saved)) setValue(saved);
+    if (validator.current(saved)) setValue(migrator.current(saved));
     setReady(true);
   }, [name]);
   useEffect(() => {

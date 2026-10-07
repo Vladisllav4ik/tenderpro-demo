@@ -159,6 +159,8 @@ export function newTender(t: Tender, now = new Date()): Tender {
     {
       ...clean,
       status: "NEW",
+      commentColor:
+        t.importSource === "excel" ? (t.commentColor ?? "none") : "none",
       comment: t.comment ?? "",
       history: [
         { at: now.toISOString(), kind: "imported", text: "Тендер імпортовано" },

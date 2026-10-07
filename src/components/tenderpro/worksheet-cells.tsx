@@ -60,16 +60,54 @@ export function ObjectsCell({
   zoom: number;
 }) {
   const objects = t.objects ?? [];
+  const item = objects.length === 1 ? objects[0] : undefined;
+  const parameters = item
+    ? [
+        ...(item.quantity !== undefined
+          ? [`${item.quantity} ${item.unit ?? ""}`]
+          : []),
+        ...(item.characteristics ?? [])
+          .slice(0, 3)
+          .map((value) =>
+            value
+              .replace(/^Вантажопідйомність:\s*/i, "")
+              .replace(/^Основна стріла:\s*/i, "стріла "),
+          ),
+      ].join(" · ")
+    : "";
   return (
     <Popover>
       <PopoverTrigger asChild>
         <button
           className="sheet-objects-preview"
-          aria-label={`Об'єкт: ${t.title}`}
+          aria-label={`Предмет закупівлі: ${t.title}`}
         >
-          <span className="sheet-two-lines">
-            {objects.slice(0, 2).map(objectLabel).join("\n") || "Не зазначено"}
-          </span>
+          {item ? (
+            <span title={objectLabel(item)}>
+              <span className="sheet-subject-name">
+                {item.name.replace(/\s+або\s+.*$/iu, "")}
+              </span>
+              {parameters && (
+                <span className="sheet-subject-params">{parameters}</span>
+              )}
+            </span>
+          ) : (
+            <span className="sheet-two-lines">
+              {objects
+                .slice(0, 2)
+                .map((object) =>
+                  [
+                    object.name,
+                    object.quantity !== undefined
+                      ? `${object.quantity} ${object.unit ?? ""}`
+                      : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" · "),
+                )
+                .join("\n") || "-"}
+            </span>
+          )}
           {objects.length > 2 && <small>+{objects.length - 2}</small>}
         </button>
       </PopoverTrigger>
@@ -78,7 +116,7 @@ export function ObjectsCell({
         style={{ fontSize: (13 * zoom) / 100 }}
         align="start"
       >
-        <h3>Об'єкти закупівлі · {objects.length}</h3>
+        <h3>Предмет закупівлі · {objects.length}</h3>
         <ul>
           {objects.map((object, i) => (
             <li key={i}>{objectLabel(object)}</li>

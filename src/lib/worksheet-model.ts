@@ -12,7 +12,7 @@ export const sheetColumns = [
   { key: "number", label: "№", width: 44 },
   { key: "comment", label: "Коментар", width: 210 },
   { key: "title", label: "Назва закупівлі", width: 250 },
-  { key: "objects", label: "Об'єкт", width: 225 },
+  { key: "objects", label: "Предмет закупівлі", width: 225 },
   { key: "quantity", label: "Кількість", width: 105 },
   { key: "unit", label: "Од. виміру", width: 110 },
   { key: "unitPrice", label: "Ціна за одиницю", width: 155 },
@@ -23,14 +23,14 @@ export const sheetColumns = [
   { key: "deliveryPeriod", label: "Період поставки", width: 210 },
   { key: "customer", label: "Замовник", width: 205 },
   { key: "address", label: "Адреса", width: 220 },
-  { key: "topCategory", label: "Категорія", width: 145 },
-  { key: "specialRequirements", label: "Особливі вимоги", width: 240 },
   { key: "technicalRequirements", label: "Технічні вимоги", width: 260 },
   {
     key: "qualificationRequirements",
     label: "Кваліфікаційні вимоги",
     width: 250,
   },
+  { key: "specialRequirements", label: "Особливі вимоги", width: 240 },
+  { key: "topCategory", label: "Категорія", width: 145 },
   { key: "score", label: "AI", width: 70 },
   { key: "status", label: "Статус", width: 155 },
 ] as const;
@@ -38,7 +38,7 @@ export type ColumnKey = (typeof sheetColumns)[number]["key"];
 export type TableMode = "compact" | "detailed";
 export type TableSort = { key: ColumnKey; direction: 1 | -1 };
 export type TableLayout = {
-  version: 1;
+  version: 1 | 2;
   order: ColumnKey[];
   visibility: ColumnKey[];
   widths: Partial<Record<ColumnKey, number>>;
@@ -68,7 +68,7 @@ export const detailedOrder: ColumnKey[] = sheetColumns.map((c) => c.key);
 export function defaultLayout(mode: TableMode): TableLayout {
   const order = (mode === "compact" ? compactOrder : detailedOrder).slice();
   return {
-    version: 1,
+    version: 2,
     order,
     visibility: order.slice(),
     widths: {},
@@ -81,7 +81,7 @@ export function validLayout(value: unknown): boolean {
   const v = value as TableLayout;
   const keys = sheetColumns.map((c) => c.key);
   return (
-    v.version === 1 &&
+    [1, 2].includes(v.version) &&
     [v.order, v.visibility, v.pinned].every(
       (list) => Array.isArray(list) && list.every((k) => keys.includes(k)),
     ) &&
@@ -101,6 +101,25 @@ export function validLayout(value: unknown): boolean {
     [1, -1].includes(v.sort.direction)
   );
 }
+export function migrateLayout(layout: TableLayout): TableLayout {
+  if (layout.version === 2) return layout;
+  const tail: ColumnKey[] = ["topCategory", "score", "status"];
+  const requirements: ColumnKey[] = [
+    "technicalRequirements",
+    "qualificationRequirements",
+    "specialRequirements",
+  ];
+  const hasRequirements = layout.order.some((k) => requirements.includes(k));
+  const core = layout.order.filter(
+    (k) => !tail.includes(k) && !(hasRequirements && requirements.includes(k)),
+  );
+  return {
+    ...layout,
+    version: 2,
+    order: [...core, ...(hasRequirements ? requirements : []), ...tail],
+    pinned: layout.pinned.filter((k) => !tail.includes(k)),
+  };
+}
 export function layoutColumns(
   layout: TableLayout,
   mode: TableMode,
@@ -111,7 +130,7 @@ export function layoutColumns(
     allowed.includes(k),
   );
   const middle = order.filter(
-    (k) => !["number", "comment", "status"].includes(k),
+    (k) => !["number", "comment", "topCategory", "score", "status"].includes(k),
   );
   const pinned = middle.filter((k) => layout.pinned.includes(k));
   return [
@@ -119,6 +138,8 @@ export function layoutColumns(
     "comment",
     ...pinned,
     ...middle.filter((k) => !pinned.includes(k)),
+    "topCategory",
+    "score",
     "status",
   ]
     .filter((k) =>
@@ -151,10 +172,11 @@ export function categoryLabel(
   if (["Техніка", "Запчастини", "Обладнання"].includes(t.topCategory))
     return t.topCategory as "Техніка" | "Запчастини" | "Обладнання";
   if (t.topCategory === "Сервіс і роботи")
-    return t.category.includes("Будівельні") ? "Будівництво" : "Послуги";
+    return /Будівель|Будівниц/.test(t.category) ? "Будівництво" : "Послуги";
   return "Інше";
 }
 export function tableTender(t: Tender, flow?: DetailFlow): Tender {
+  if (t.importSource === "excel") flow = undefined;
   const technical = flow?.technical ?? [];
   const find = (label: RegExp) =>
     technical.find(([key]) => label.test(key ?? ""))?.[1];
@@ -190,6 +212,26 @@ export function tableTender(t: Tender, flow?: DetailFlow): Tender {
               t.title.replace(/,?\s*\d+(?:[.,]\d+)?\s*(?:од\.?|шт\.?)$/, ""),
             ...(quantity !== undefined ? { quantity } : {}),
             ...(unit ? { unit } : {}),
+            characteristics: technical
+              .filter(
+                ([label, value]) =>
+                  /вантажопід|основна стріла|колісна|потужність|об.єм|комплектац/i.test(
+                    label ?? "",
+                  ) && !/уточнити|підтвердити|визначити/i.test(value ?? ""),
+              )
+              .sort(([a], [b]) => {
+                const rank = (label: string) =>
+                  /вантажопід/i.test(label)
+                    ? 0
+                    : /основна стріла/i.test(label)
+                      ? 1
+                      : /комплектац/i.test(label)
+                        ? 2
+                        : 3;
+                return rank(a ?? "") - rank(b ?? "");
+              })
+              .slice(0, 2)
+              .map(([label, value]) => `${label}: ${value}`),
           },
         ]);
   const homogeneous =
@@ -205,14 +247,65 @@ export function tableTender(t: Tender, flow?: DetailFlow): Tender {
   const objectUnit = unit ?? (homogeneous ? objects[0]?.unit : undefined);
   const docs = flow?.documents ?? [];
   const qualificationDoc = docs.find((d) => /кваліфікац/i.test(d.name));
-  const special = flow?.requirements.filter((text) =>
-    /походжен|авторизац|локаліза|виробник|сервіс|сертиф/i.test(text),
-  );
-  const qualifications = qualificationDoc?.facts.length
-    ? [...qualificationDoc.facts]
-    : flow?.requirements.filter((text) =>
-        /кваліфікац|досвід|довідк|документ|гарант/i.test(text),
-      );
+  const known = (text: string) =>
+    !!text.trim() &&
+    !/уточнити|підтвердити за|визначити за|не зазначено|не вказано|не знайдено|немає даних|потребує уточнення|згідно.*завданням/i.test(
+      text,
+    );
+  const specialPattern =
+    /гарант|ліцензі|авторизац|локаліза|виробник|походжен|сервіс/i;
+  const technicalPattern =
+    /техніч|сумісн|модель|параметр|характеристик|еквівалент|паспорт.*техніки/i;
+  const qualificationPattern =
+    /кваліфікац|досвід|довідк|аналогічн.*договор|звітніст|документ.*компан|сертиф/i;
+  const pool = [
+    ...(flow?.requirements ?? []),
+    ...(qualificationDoc?.facts ?? []),
+  ].filter(known);
+  const specialRaw =
+    t.specialRequirements ??
+    pool.filter(
+      (text) =>
+        specialPattern.test(text) ||
+        (!technicalPattern.test(text) && !qualificationPattern.test(text)),
+    );
+  const qualificationRaw =
+    t.qualificationRequirements ??
+    pool.filter(
+      (text) =>
+        qualificationPattern.test(text) &&
+        !specialPattern.test(text) &&
+        !technicalPattern.test(text),
+    );
+  const technicalRaw = t.technicalRequirements ?? [
+    ...(flow?.parts.length
+      ? flow.parts.map(
+          (p) =>
+            `${p.code} · ${p.brand} · ${p.name} · ${p.qty} шт. · ${p.match}`,
+        )
+      : technical
+          .filter(
+            ([label, value]) =>
+              !specialPattern.test(label ?? "") && known(value ?? ""),
+          )
+          .map(([label, value]) => `${label}: ${value}`)),
+    ...pool.filter(
+      (text) => technicalPattern.test(text) && !specialPattern.test(text),
+    ),
+  ];
+  const seen = new Set<string>();
+  const unique = (list: string[]) =>
+    list.filter(known).filter((text) => {
+      const key = text
+        .toLocaleLowerCase("uk-UA")
+        .replace(/[^\p{L}\p{N}]/gu, "");
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  const tech = unique(technicalRaw),
+    qual = unique(qualificationRaw),
+    special = unique(specialRaw);
   return {
     ...t,
     objects,
@@ -220,20 +313,12 @@ export function tableTender(t: Tender, flow?: DetailFlow): Tender {
     ...(objectUnit ? { unit: objectUnit } : {}),
     ...(t.deliveryPeriod
       ? {}
-      : flow?.delivery
+      : flow?.delivery && known(flow.delivery)
         ? { deliveryPeriod: { text: flow.delivery } }
         : {}),
-    specialRequirements: t.specialRequirements ?? special ?? [],
-    technicalRequirements:
-      t.technicalRequirements ??
-      (flow?.parts.length
-        ? flow.parts.map(
-            (p) =>
-              `${p.code} · ${p.brand} · ${p.name} · ${p.qty} шт. · ${p.match}`,
-          )
-        : technical.map(([label, value]) => `${label}: ${value}`)),
-    qualificationRequirements:
-      t.qualificationRequirements ?? qualifications ?? [],
+    technicalRequirements: tech,
+    qualificationRequirements: qual,
+    specialRequirements: special,
   };
 }
 export function objectLabel(
@@ -242,6 +327,7 @@ export function objectLabel(
   return [
     object.name,
     object.catalogue,
+    ...(object.characteristics ?? []).slice(0, 3),
     object.quantity !== undefined
       ? `${object.quantity} ${object.unit ?? ""}`
       : "",
@@ -264,7 +350,7 @@ export function worksheetValue(
   if (key === "status") return statusLabel(t.status);
   if (key === "topCategory") return categoryLabel(t);
   if (key === "objects")
-    return (t.objects ?? []).map(objectLabel).join("\n") || "Не зазначено";
+    return (t.objects ?? []).map(objectLabel).join("\n") || "-";
   if (key === "auctionPeriod")
     return t.auctionPeriod?.end && !t.auctionPeriod.start
       ? periodRange({ start: t.auctionPeriod.end })
@@ -277,11 +363,12 @@ export function worksheetValue(
       "qualificationRequirements",
     ].includes(key)
   )
-    return (t[key as "specialRequirements"] ?? []).join("\n") || "Не зазначено";
-  if (key === "quantity" || key === "unitPrice") return t[key] ?? "—";
-  if (key === "unit" || key === "address") return t[key] ?? "Не зазначено";
+    return (t[key as "specialRequirements"] ?? []).join("\n") || "-";
+  if (key === "quantity" || key === "unitPrice") return t[key] ?? "-";
+  if (key === "unit" || key === "address") return t[key] ?? "-";
+  if (key === "score" && t.analysisPending) return "-";
   if (key === "budget" || key === "score") return t[key];
-  return String(t[key as "title"]) || "—";
+  return String(t[key as "title"]) || "-";
 }
 export function worksheetSortValue(
   t: Tender,
@@ -303,3 +390,35 @@ export const periodCaption = (items: Tender[], now: Date) => {
   const p = dataPeriod(items, now);
   return `Період: ${fullDate(p.from)} — ${fullDate(p.to)}`;
 };
+
+export function worksheetPreview(t: Tender, flow: DetailFlow): DetailFlow {
+  if (t.importSource !== "excel") return flow;
+  const data = tableTender(t);
+  return {
+    parts: [],
+    technical: [
+      ...(data.quantity !== undefined
+        ? [["Кількість", `${data.quantity} ${data.unit ?? ""}`]]
+        : []),
+      ...(data.unitPrice !== undefined
+        ? [["Ціна за одиницю", amount(data.unitPrice)]]
+        : []),
+      ...(data.technicalRequirements ?? [])
+        .slice(0, 3)
+        .map((value, i) => [`Вимога ${i + 1}`, value]),
+    ],
+    documents: [],
+    summary: t.analysisPending
+      ? "AI аналіз ще не виконано. Дані отримано з Excel."
+      : t.recommendation,
+    checks: "-",
+    requirements: [
+      ...(data.technicalRequirements ?? []),
+      ...(data.qualificationRequirements ?? []),
+      ...(data.specialRequirements ?? []),
+    ],
+    risks: [],
+    plan: [],
+    delivery: periodRange(data.deliveryPeriod),
+  };
+}
