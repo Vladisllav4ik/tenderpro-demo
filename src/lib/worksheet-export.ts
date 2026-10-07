@@ -129,7 +129,7 @@ export async function createWorksheetWorkbook(
           underline: true,
         };
       if (column.key === "budget" || column.key === "unitPrice")
-        cell.numFmt = '#,##0.##" ₴"';
+        cell.numFmt = t.currency === "UAH" ? '#,##0.##" ₴"' : "#,##0.##";
     });
   });
   sheet.getRow(1).eachCell((cell) => {

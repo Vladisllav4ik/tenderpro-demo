@@ -1,6 +1,10 @@
 import { useAccount, accountKey, migrateAccountStorage } from "./account";
 import { canonicalTender } from "./tender-model";
-import { queueStatusRecheck } from "./agents/client";
+import {
+  getImportedCrash,
+  saveCrashComment,
+  queueStatusRecheck,
+} from "./agents/client";
 import { lifecycleInputFromTender } from "./agents/system-contracts";
 import {
   createContext,
@@ -11,7 +15,7 @@ import {
   useRef,
   type ReactNode,
 } from "react";
-import { tenders as seed, type Tender } from "./demo-data";
+import type { Tender } from "./demo-data";
 import {
   normalizeTender,
   newTender,
@@ -53,7 +57,7 @@ type DemoState = {
   knowledge: typeof initialKnowledge;
 };
 const initial: DemoState = {
-  tenders: seed.map((t) => canonicalTender(normalizeTender(t))),
+  tenders: [],
   rules: [
     { name: "DONGFENG або XCMG", weight: 25, enabled: true },
     { name: "Точна товарна група", weight: 20, enabled: true },
@@ -83,22 +87,15 @@ type Ctx = {
   syncLifecycle: (id: string, data: NonNullable<Tender["lifecycle"]>) => void;
   now: Date;
   ready: boolean;
+  refreshTenders: () => Promise<void>;
 };
 const DemoContext = createContext<Ctx | undefined>(undefined);
 
 function migrate(raw: unknown): DemoState {
   if (!raw || typeof raw !== "object") return initial;
   const saved = raw as Partial<DemoState>;
-  const byId = new Map((saved.tenders ?? []).map((t) => [t.id, t]));
-  const tenders = seed.map((base) => ({
-    ...base,
-    ...(byId.get(base.id) ?? {}),
-  }));
-  for (const old of saved.tenders ?? [])
-    if (!tenders.some((t) => t.id === old.id))
-      tenders.push({ ...seed[0], ...old });
   return {
-    tenders: tenders.map((t) => canonicalTender(normalizeTender(t))),
+    tenders: [],
     rules: saved.rules ?? initial.rules,
     pipeline: saved.pipeline ?? {},
     settings: { ...initial.settings, ...saved.settings },
@@ -121,25 +118,61 @@ export function DemoProvider({ children }: { children: ReactNode }) {
         return {
           ...next,
           tenders: next.tenders.map((t) =>
-            canonicalTender(
-              recalculateTender(
-                known.has(t.id) ? normalizeTender(t) : newTender(t),
-              ),
-            ),
+            t.crashRecordId
+              ? t
+              : canonicalTender(
+                  recalculateTender(
+                    known.has(t.id) ? normalizeTender(t) : newTender(t),
+                  ),
+                ),
           ),
         };
       }),
     [],
   );
   const [ready, setReady] = useState(false);
+  const refreshTenders = useCallback(async () => {
+    if (!account) return;
+    const records = await getImportedCrash();
+    setInternalState((previous) => ({
+      ...previous,
+      tenders: records.map((r) => r.finalMergedTender),
+    }));
+  }, [account?.id]);
   useEffect(() => {
+    let active = true;
     try {
-      migrateAccountStorage(account?.id ?? "guest");
-      const value = localStorage.getItem(storageKey);
-      if (value) setInternalState(migrate(JSON.parse(value)));
+      // Purge every legacy account's tender lists; keep preferences and server agent configuration.
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const key = localStorage.key(i)!;
+        if (
+          key === "tenderpro-demo" ||
+          /^tenderpro\.users\..*\.tenders$/.test(key)
+        )
+          localStorage.removeItem(key);
+      }
     } catch {}
-    setReady(true);
-  }, []);
+    if (!account) {
+      setReady(true);
+      return;
+    }
+    getImportedCrash()
+      .then((records) => {
+        if (active) {
+          setInternalState((previous) => ({
+            ...previous,
+            tenders: records.map((r) => r.finalMergedTender),
+          }));
+          setReady(true);
+        }
+      })
+      .catch(() => {
+        if (active) setReady(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, [account?.id]);
   useEffect(() => {
     if (ready) {
       try {
@@ -159,6 +192,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
       );
       setInternalState((s) => {
         const tenders = s.tenders.map((t) => {
+          if (t.crashRecordId) return t;
           const next = recalculateTender(t, time);
           return next === t ? t : canonicalTender(next);
         });
@@ -201,6 +235,10 @@ export function DemoProvider({ children }: { children: ReactNode }) {
       localStorage.setItem(storageKey, JSON.stringify(next));
     } catch {}
     const changed = next.tenders.find((t) => t.id === id);
+    if (changed?.crashRecordId)
+      void saveCrashComment({ data: { id, comment } }).catch(() =>
+        console.warn("Коментар не збережено на сервері."),
+      );
     if (changed)
       void queueStatusRecheck({ data: lifecycleInputFromTender(changed) })
         .then((reply) => {
@@ -280,6 +318,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
         syncLifecycle,
         now,
         ready,
+        refreshTenders,
       }}
     >
       {children}

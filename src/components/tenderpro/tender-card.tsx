@@ -70,7 +70,7 @@ export function TenderCard({
   const period = periodInfo(t, now);
   const textFor = (doc: DetailDocument) =>
     [
-      "TenderPro · демо-витяг",
+      "TenderPro · текст джерела",
       doc.name,
       t.title,
       t.id,
@@ -89,7 +89,7 @@ export function TenderCard({
     );
     const link = document.createElement("a");
     link.href = url;
-    link.download = doc.name + ".demo.txt";
+    link.download = doc.name + ".txt";
     document.body.append(link);
     link.click();
     link.remove();
@@ -103,20 +103,20 @@ export function TenderCard({
     ["Категорія", t.category],
     ["CPV", t.cpv ?? "-"],
     ["Предмет закупівлі", t.subject ?? "-"],
-    ["Сума", money(t.budget)],
+    ["Сума", money(t.budget, t.currency)],
     ["Кількість", t.quantity ?? "-"],
     ["Од. виміру", t.unit ?? "-"],
-    ["Ціна за одиницю", t.unitPrice === undefined ? "-" : money(t.unitPrice)],
+    [
+      "Ціна за одиницю",
+      t.unitPrice === undefined ? "-" : money(t.unitPrice, t.currency),
+    ],
     ["Аукціон", periodRange(t.auctionPeriod)],
     ["Поставка", periodRange(t.deliveryPeriod)],
     ["Адреса", t.address ?? "-"],
-    [
-      "Дата публікації",
-      `${fullDate(period.start)}${t.publicationDateSource === "tender-id" ? " · з ID тендера" : ""}`,
-    ],
+    ["Дата публікації", t.publishedAt ? fullDate(t.publishedAt) : "-"],
     ["Дедлайн", t.deadline],
     ["Залишилось", period.label],
-    ["Тип процедури", "Не зазначено в демо-джерелі"],
+    ["Тип процедури", "-"],
     ["Регіон", t.region],
   ];
   return (
@@ -137,7 +137,7 @@ export function TenderCard({
             </span>
             <small>{period.label}</small>
           </div>
-          <strong>{money(t.budget)}</strong>
+          <strong>{money(t.budget, t.currency)}</strong>
           <a href={prozorroLink(t)} target="_blank" rel="noreferrer">
             Prozorro <ExternalLink size={15} />
           </a>
@@ -202,7 +202,7 @@ export function TenderCard({
         <TabsContent value="AI аналіз">
           <section className="tender-card-section">
             <h2>
-              AI висновок <small>Демо-аналіз</small>
+              AI висновок <small>За наданими джерелами</small>
             </h2>
             <p className="tender-card-summary">{flow.summary}</p>
             <div className="tender-ai-metrics">
@@ -232,8 +232,8 @@ export function TenderCard({
               Документи <small>{flow.documents.length}</small>
             </h2>
             <p className="tender-card-muted">
-              Локальні демо-витяги. Завантаження повертає текст (.demo.txt);
-              оригінали PDF / XLSX / DOCX доступні в Prozorro.
+              Документи відображаються лише за наданим джерелом. Якщо їх не
+              імпортовано або не отримано, список порожній.
             </p>
             <div className="tender-document-list">
               {flow.documents.map((doc) => {
@@ -246,7 +246,7 @@ export function TenderCard({
                       <p>
                         {doc.name.split(".").at(-1)?.toUpperCase()} · витяг{" "}
                         {new Blob([textFor(doc)]).size.toLocaleString("uk-UA")}{" "}
-                        байт · {fullDate(period.start)} (дата демо-джерела)
+                        байт · {fullDate(period.start)}
                       </p>
                       <p>
                         {state?.downloaded
@@ -255,7 +255,7 @@ export function TenderCard({
                         ·{" "}
                         {state?.parsed
                           ? "AI parsed ✓"
-                          : "Демо-витяг розпізнано · AI аналіз не відкрито"}
+                          : "Текст джерела · AI аналіз не відкрито"}
                       </p>
                     </div>
                     <div className="tender-document-actions">
@@ -410,9 +410,7 @@ export function TenderCard({
           <DialogHeader>
             <DialogTitle>{preview?.name}</DialogTitle>
             <DialogDescription>
-              {analysis
-                ? "Структурований AI аналіз · демо"
-                : "Локальний демо-витяг документа"}
+              {analysis ? "Структурований аналіз джерела" : "Текст документа"}
             </DialogDescription>
           </DialogHeader>
           {preview && (
@@ -422,12 +420,9 @@ export function TenderCard({
               ) : (
                 <pre>{preview.text}</pre>
               )}
-              <SummaryList
-                title="Джерела у демо"
-                items={[...preview.sources]}
-              />
+              <SummaryList title="Джерела" items={[...preview.sources]} />
               <Button variant="outline" onClick={() => download(preview)}>
-                Завантажити демо-витяг (.txt)
+                Завантажити текст джерела (.txt)
               </Button>
             </div>
           )}

@@ -12,6 +12,7 @@ import {
 import { useDemo } from "@/lib/demo-store";
 import type { ImportResult } from "@/lib/excel-import";
 import { toast } from "sonner";
+import { importCrashTenders } from "@/lib/agents/client";
 export function WorksheetImport({
   open,
   onOpenChange,
@@ -19,7 +20,7 @@ export function WorksheetImport({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const { state, setState } = useDemo();
+  const { state, refreshTenders } = useDemo();
   const setOpen = onOpenChange;
   const [busy, setBusy] = useState(false),
     [result, setResult] = useState<ImportResult | null>(null),
@@ -41,6 +42,7 @@ export function WorksheetImport({
       const parsed = await parseImportWorkbook(
         await file.arrayBuffer(),
         new Set(state.tenders.map((t) => t.id)),
+        file.name,
       );
       setResult(parsed);
       if (!parsed.total)
@@ -51,25 +53,28 @@ export function WorksheetImport({
       setBusy(false);
     }
   };
-  const commit = () => {
+  const commit = async () => {
     if (!result?.tenders.length) return;
-    const present = new Set(state.tenders.map((t) => t.id));
-    const count = result.tenders.filter((t) => !present.has(t.id)).length;
-    setState((s) => {
-      const known = new Set(s.tenders.map((t) => t.id));
-      return {
-        ...s,
-        tenders: [
-          ...s.tenders,
-          ...result.tenders.filter((t) => !known.has(t.id)),
-        ],
-      };
-    });
-    toast.success(
-      `Імпортовано ${count} тендерів. Активний період і фільтри застосовуються до нових рядків.`,
-    );
-    setOpen(false);
-    setResult(null);
+    setBusy(true);
+    setError("");
+    try {
+      const reply = await importCrashTenders({
+        data: { tenders: result.tenders },
+      });
+      await refreshTenders();
+      toast.success(
+        `Імпортовано ${reply.imported}. Pipeline 2 → 3 → 4 завершив обробку; статуси й помилки — у ADMIN → Crash test / Pipeline.`,
+      );
+      setOpen(false);
+      setResult(null);
+    } catch (e) {
+      setError(
+        e instanceof Error ? e.message : "Імпорт або pipeline не завершено.",
+      );
+      await refreshTenders().catch(() => {});
+    } finally {
+      setBusy(false);
+    }
   };
   return (
     <>
@@ -92,7 +97,7 @@ export function WorksheetImport({
               void read(e.target.files?.[0]);
             }}
           />
-          {busy && <p role="status">Перевіряємо файл…</p>}
+          {busy && <p role="status">Перевірка / pipeline 2 → 3 → 4…</p>}
           {error && <p role="alert">{error}</p>}
           {result && (
             <div className="worksheet-import-result">
@@ -111,8 +116,9 @@ export function WorksheetImport({
               )}
               {result.tenders.length > 0 && (
                 <p>
-                  Буде додано тільки перевірені рядки. AI аналіз не запускається
-                  автоматично.
+                  Буде додано 1–10 перевірених рядків. Pipeline Agent 2 → 3 → 4
+                  запускається автоматично у збережених режимах агентів; OpenAI
+                  режими витрачають tokens. Agent 1 не запускається.
                 </p>
               )}
             </div>

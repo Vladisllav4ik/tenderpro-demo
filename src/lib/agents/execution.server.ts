@@ -24,6 +24,7 @@ import {
 } from "./configuration-storage.server";
 export async function adminState() {
   requireAccount(true);
+  await (await import("./crash-execution.server")).initializeCrashStorage();
   await loadConfigurations();
   let persistentLogs: import("./contracts").AgentLog[] = [];
   let journalAvailable = true;
@@ -160,12 +161,8 @@ export async function saveConfig(config: AgentConfig) {
   return persistConfiguration(config);
 }
 export async function runPipeline(records: Tender[]) {
-  const account = requireAccount();
-  await loadConfigurations();
-  return executePipeline(
-    records,
-    agentRepository.list(),
-    account.id,
-    appendLog,
+  requireAccount();
+  throw new Error(
+    "Для Excel використовуйте автоматичний crash-test pipeline; legacy mock-обробку вимкнено.",
   );
 }

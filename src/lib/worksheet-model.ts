@@ -163,8 +163,8 @@ export const commentFill = (color?: Tender["commentColor"]) =>
   commentPalette.find((c) => c.value === color)?.fill ?? null;
 export const prozorroLink = (t: Tender) =>
   `https://prozorro.gov.ua/tender/${encodeURIComponent(t.id.replace(/-IMP.*$/, ""))}`;
-export const amount = (value: number) =>
-  `${new Intl.NumberFormat("uk-UA", { maximumFractionDigits: 2 }).format(value)} ₴`;
+export const amount = (value: number, currency?: string) =>
+  `${new Intl.NumberFormat("uk-UA", { maximumFractionDigits: 2 }).format(value)}${currency ? ` ${currency}` : ""}`;
 export function categoryLabel(
   t: Tender,
 ):
@@ -193,6 +193,14 @@ export function matchesRelevance(t: Tender, filter: string) {
   );
 }
 export function tableTender(t: Tender, flow?: DetailFlow): Tender {
+  if (t.importSource === "excel")
+    return {
+      ...t,
+      objects: t.objects ?? [],
+      technicalRequirements: t.technicalRequirements ?? [],
+      qualificationRequirements: t.qualificationRequirements ?? [],
+      specialRequirements: t.specialRequirements ?? [],
+    };
   if (t.importSource === "excel") flow = undefined;
   const technical = flow?.technical ?? [];
   const find = (label: RegExp) =>
@@ -425,9 +433,7 @@ export function worksheetPreview(t: Tender, flow: DetailFlow): DetailFlow {
         .map((value, i) => [`Вимога ${i + 1}`, value]),
     ],
     documents: [],
-    summary: t.analysisPending
-      ? "AI аналіз ще не виконано. Дані отримано з Excel."
-      : t.recommendation,
+    summary: t.aiSummary ?? "-",
     checks: "-",
     requirements: [
       ...(data.technicalRequirements ?? []),

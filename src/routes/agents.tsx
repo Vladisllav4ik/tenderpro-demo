@@ -9,6 +9,7 @@ import { useState } from "react";
 import { useDemo } from "@/lib/demo-store";
 import { toast } from "sonner";
 import { AgentSystemTest } from "@/components/tenderpro/agent-system-tests";
+import { CrashTestPanel } from "@/components/tenderpro/crash-test-panel";
 import {
   filterInputFromTender,
   type FilterTestReply,
@@ -58,6 +59,7 @@ function AgentAdmin() {
       {!initial.journalAvailable && (
         <p role="alert">Локальний журнал недоступний.</p>
       )}
+      <CrashTestPanel configs={configs} refresh={refresh} />
       <AgentSystemTest
         configs={configs}
         savedConfigs={savedConfigs}

@@ -136,8 +136,7 @@ function mockAnalysis(input: AnalyzerInput): AnalyzerResult {
     qualificationRequirements: input.knownFields.qualificationRequirements,
     requiredDocuments: [],
     risks: [],
-    aiSummary:
-      "Mock preview: структуровано доступні поля; невідоме залишено null або порожнім.",
+    aiSummary: "-",
   });
 }
 export function evaluateLifecycleRules(

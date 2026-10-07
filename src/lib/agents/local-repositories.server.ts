@@ -81,6 +81,18 @@ export class LocalAgentRepositories implements PipelineRepository {
       ].slice(0, 200);
     });
   }
+  clearRunHistory() {
+    return this.transaction((s) => {
+      s.pipelines = [];
+      s.jobs = [];
+    });
+  }
+  removeTenderHistory(ids: ReadonlySet<string>) {
+    return this.transaction((s) => {
+      s.pipelines = s.pipelines.filter((p) => !ids.has(p.tenderId));
+      s.jobs = s.jobs.filter((j) => !ids.has(j.tenderId));
+    });
+  }
   async list(accountId?: string): Promise<PipelineRecord[]> {
     await this.queue;
     const s = await this.read();

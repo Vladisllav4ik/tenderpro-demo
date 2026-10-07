@@ -1,6 +1,4 @@
 import { useAccount } from "@/lib/account";
-import { mergeAgentResult } from "@/lib/agents/merge";
-import { processTenders } from "@/lib/agents/client";
 import { TableRangePicker } from "./table-range-picker";
 import { WorksheetImport } from "./worksheet-import";
 import type { TableRange } from "@/lib/table-range";
@@ -517,36 +515,6 @@ export function TenderWorksheet({
           </PopoverTrigger>
           <PopoverContent className="sheet-menu" align="start">
             <p className="sheet-menu-heading">Робочий простір</p>
-            <button
-              disabled={processing || !ready || items.length === 0}
-              onClick={async () => {
-                setProcessing(true);
-                try {
-                  const result = await processTenders({
-                    data: items.slice(0, 100),
-                  });
-                  const updates = new Map(result.tenders.map((t) => [t.id, t]));
-                  setState((s) => ({
-                    ...s,
-                    tenders: s.tenders.map((t) => {
-                      const update = updates.get(t.id);
-                      return update ? mergeAgentResult(t, update) : t;
-                    }),
-                  }));
-                  toast.success(
-                    `Mock: прийнято ${result.accepted}, відсіяно ${result.rejected}. Оброблено до 100 видимих тендерів.`,
-                  );
-                } catch (e) {
-                  toast.error(
-                    e instanceof Error ? e.message : "Помилка обробки",
-                  );
-                } finally {
-                  setProcessing(false);
-                }
-              }}
-            >
-              {processing ? "Обробка…" : "Обробити агентами (mock)"}
-            </button>
             {navigation.map(([to, label]) => (
               <Link className="sheet-nav-link" key={to} to={to}>
                 {label}
@@ -1090,9 +1058,9 @@ export function TenderWorksheet({
                     ) : c.key === "period" ? (
                       <SubmissionCell tender={t} now={now} zoom={zoom} />
                     ) : c.key === "budget" ? (
-                      amount(t.budget)
+                      amount(t.budget, t.currency)
                     ) : c.key === "unitPrice" && t.unitPrice !== undefined ? (
-                      amount(t.unitPrice)
+                      amount(t.unitPrice, t.currency)
                     ) : (
                       <DetailCell
                         tender={t}
@@ -1161,7 +1129,7 @@ export function TenderWorksheet({
                 <p className="sheet-panel-customer">{selected.customer}</p>
                 <dl className="sheet-panel-facts">
                   {[
-                    ["Сума", money(selected.budget)],
+                    ["Сума", money(selected.budget, selected.currency)],
                     [
                       "Період",
                       `${shortDate(periodInfo(selected, now).start)} → ${selected.deadline.slice(0, 5)}`,

@@ -172,6 +172,6 @@ test("imported row previews do not invent demo documents, risk tags or AI conclu
   });
   assert.deepEqual(preview.documents, []);
   assert.deepEqual(preview.risks, []);
-  assert.match(preview.summary, /ще не виконано/);
+  assert.equal(preview.summary, "-");
   assert.equal(preview.delivery, "-");
 });

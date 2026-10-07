@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { tenders } from "../src/lib/demo-data.ts";
+import { tenders } from "./fixtures/tenders.ts";
 import {
   defaultLayout,
   layoutColumns,

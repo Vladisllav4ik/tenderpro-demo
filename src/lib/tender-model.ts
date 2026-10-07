@@ -1,7 +1,5 @@
 import type { Tender } from "./demo-data.ts";
-import { tenders as seed } from "./demo-data.ts";
 import { detailFlow, type DetailFlow } from "./tender-detail.ts";
-import { specs, documents } from "./demo-fixtures.ts";
 import { tableTender } from "./worksheet-model.ts";
 import { shortSubject } from "./tender-subject.ts";
 const emptyFlow = (): DetailFlow => ({
@@ -15,7 +13,6 @@ const emptyFlow = (): DetailFlow => ({
   plan: [],
   delivery: "-",
 });
-const fixtureIds = new Set(seed.map((t) => t.id));
 export type CanonicalTender = Tender &
   Required<
     Pick<
@@ -35,28 +32,17 @@ export type CanonicalTender = Tender &
   >;
 // Legacy fixtures are materialized once, never selected independently by a UI route.
 export function canonicalTender(t: Tender): CanonicalTender {
-  const flow =
-    t.analysis ??
-    (fixtureIds.has(t.id) && t.importSource !== "excel" && !t.analysisPending
-      ? detailFlow(t, specs, documents)
-      : emptyFlow());
+  const flow = t.analysis ?? detailFlow(t);
   const data = tableTender(t, flow);
   const analysis = {
     ...flow,
     documents: t.documents ?? flow.documents,
-    summary:
-      t.aiSummary ??
-      (t.analysisPending
-        ? `AI аналіз ще не виконано.${t.importSource === "excel" ? " Дані отримано з Excel." : ""}`
-        : flow.summary),
+    summary: t.aiSummary ?? "-",
     risks: t.risks ?? flow.risks,
   };
   return {
     ...data,
-    subject: shortSubject(
-      t.subject || data.objects?.map((o) => o.name).join("; ") || t.title,
-      data.objects,
-    ),
+    subject: t.subject ?? "-",
     cpv: t.cpv ?? null,
     totalAmount: data.budget,
     aiScore: t.aiScore === null || t.analysisPending ? null : data.score,

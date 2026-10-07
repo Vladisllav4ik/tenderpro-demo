@@ -161,6 +161,7 @@ export const defaultPipelineSettings: PipelineSettings = {
   reviewThreshold: 0.3,
 };
 export type StageResult = {
+  cached?: boolean;
   agentId: AgentId;
   status: "success" | "error" | "skipped";
   result?: JsonValue;

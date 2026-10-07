@@ -108,7 +108,14 @@ export function filterInputFromTender(t: Tender): FilterTestInput {
     cpv: t.cpv ?? null,
     customer: t.customer,
     totalAmount: t.totalAmount ?? t.budget,
-    description: t.description ?? "",
+    description: [
+      t.description ?? "",
+      ...(t.importSource === "excel"
+        ? Object.entries(t.rawImport?.cells ?? {})
+            .filter(([, v]) => v !== null)
+            .map(([k, v]) => `${k}: ${v}`)
+        : []),
+    ].join("\n"),
     subject: t.subject ?? "",
     quantity: t.quantity ?? null,
     unit: t.unit ?? null,

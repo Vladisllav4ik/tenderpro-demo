@@ -2,6 +2,31 @@ import { createServerFn } from "@tanstack/react-start";
 import type { Tender } from "../demo-data";
 import type { AgentConfig } from "./contracts";
 import type { FilterTestRequest } from "./filter-test-contract";
+export const getImportedCrash = createServerFn({ method: "GET" }).handler(
+  async () => (await import("./crash-execution.server")).importedState(),
+);
+export const importCrashTenders = createServerFn({ method: "POST" })
+  .validator((data: { tenders: Tender[] }) => data)
+  .handler(async ({ data }) =>
+    (await import("./crash-execution.server")).importAndRunCrash(data),
+  );
+export const rerunCrashTenders = createServerFn({ method: "POST" }).handler(
+  async () => (await import("./crash-execution.server")).rerunImportedCrash(),
+);
+export const clearCrashTenders = createServerFn({ method: "POST" }).handler(
+  async () => (await import("./crash-execution.server")).clearImportedCrash(),
+);
+export const saveCrashComment = createServerFn({ method: "POST" })
+  .validator(
+    (data: {
+      id: string;
+      comment?: string;
+      color?: NonNullable<Tender["commentColor"]>;
+    }) => data,
+  )
+  .handler(async ({ data }) =>
+    (await import("./crash-execution.server")).updateImportedComment(data),
+  );
 import type {
   AgentTestRequest,
   LifecycleInput,

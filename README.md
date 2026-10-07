@@ -1,3 +1,5 @@
+Поточний режим: порожня робоча база, реальний Excel crash-test до 10 тендерів. Інструкція: [CRASH_TEST.md](CRASH_TEST.md).
+
 # TenderPro demo
 
 Технічний pipeline усіх 4 агентів готовий: Collector → Classifier → Analyzer → Lifecycle. Agent 2/3 підтримують серверний Responses API, Agent 4 — rules та AI fallback; результати preview/staging без overwrite. Інструкція: [AGENT_SYSTEM.md](AGENT_SYSTEM.md).

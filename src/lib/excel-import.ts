@@ -27,6 +27,10 @@ export const importHeaders = [
   "Особливі вимоги",
   "Ключові характеристики",
   "Колір коментаря",
+  "CPV",
+  "Валюта",
+  "Опис",
+  "Посилання",
 ] as const;
 type Header = (typeof importHeaders)[number];
 export type ImportResult = {
@@ -211,7 +215,7 @@ export async function createImportTemplateWorkbook() {
     "Час можна залишити порожнім, якщо джерело його не надало. Не зазначайте вигадані години.",
     "Предмети, характеристики та вимоги: кілька значень через новий рядок або крапку з комою.",
     "Сума, кількість і ціна: невід'ємні числа. Невідомі необов'язкові поля залишайте порожніми.",
-    "Дата публікації необов'язкова: за відсутності береться з ID. Період даних фільтрує саме дату публікації.",
+    "Дата публікації необов'язкова: невідоме залишається порожнім, дати з ID не підставляються.",
     "Дублікати ID не перезаписують існуючі тендери. Перед імпортом буде показано результат перевірки.",
     "Шаблон імпорту та експорт поточного вигляду — різні файли.",
   ].forEach((note) => notes.addRow([note]));
@@ -238,6 +242,7 @@ export async function downloadImportTemplate() {
 export async function parseImportWorkbook(
   bytes: ArrayBuffer | Uint8Array,
   existing: ReadonlySet<string> = new Set(),
+  fileName = "",
 ): Promise<ImportResult> {
   const { default: ExcelJS } = await import("exceljs");
   const book = new ExcelJS.Workbook();
@@ -304,12 +309,13 @@ export async function parseImportWorkbook(
         );
       const start = text(startValue)
         ? readPeriod(startValue, get("Час початку"))
-        : id.slice(3, 13);
+        : null;
       if (
-        !start ||
-        (exactTimestamp(start) !== null && exactTimestamp(end) !== null
-          ? Date.parse(start) > Date.parse(end)
-          : start.slice(0, 10) > end.slice(0, 10))
+        (text(startValue) && !start) ||
+        (start &&
+          (exactTimestamp(start) !== null && exactTimestamp(end) !== null
+            ? Date.parse(start) > Date.parse(end)
+            : start.slice(0, 10) > end.slice(0, 10)))
       )
         throw new Error(
           "Некоректний період подання: початок пізніше завершення.",
@@ -347,8 +353,9 @@ export async function parseImportWorkbook(
       const publicationRaw = get("Дата публікації");
       const publication = text(publicationRaw)
         ? dateText(publicationRaw)
-        : id.slice(3, 13);
-      if (!publication) throw new Error("Некоректна дата публікації.");
+        : null;
+      if (text(publicationRaw) && !publication)
+        throw new Error("Некоректна дата публікації.");
       const comment = text(get("Коментар"));
       const subjects = list(get("Предмет закупівлі"));
       result.tenders.push({
@@ -369,13 +376,72 @@ export async function parseImportWorkbook(
         score: 0,
         analysisPending: true,
         importSource: "excel",
+        sourceFields: [
+          "id",
+          "title",
+          "customer",
+          "budget",
+          "totalAmount",
+          "submissionPeriod",
+          "deadline",
+          ...(subjects.length ? ["subject", "objects"] : []),
+          ...(text(get("Категорія")) ? ["category", "topCategory"] : []),
+          ...(quantity !== undefined ? ["quantity"] : []),
+          ...(unit ? ["unit"] : []),
+          ...(unitPrice !== undefined ? ["unitPrice"] : []),
+          ...(text(get("Адреса")) ? ["address"] : []),
+          ...(text(get("Період поставки")) ? ["deliveryPeriod"] : []),
+          ...(list(get("Технічні вимоги")).length
+            ? ["technicalRequirements"]
+            : []),
+          ...(list(get("Кваліфікаційні вимоги")).length
+            ? ["qualificationRequirements"]
+            : []),
+          ...(list(get("Особливі вимоги")).length
+            ? ["specialRequirements"]
+            : []),
+          ...(publication ? ["publishedAt"] : []),
+          ...(text(get("CPV")) ? ["cpv"] : []),
+          ...(text(get("Валюта")) ? ["currency"] : []),
+          ...(text(get("Опис")) ? ["description"] : []),
+          ...(text(get("Посилання")) ? ["sourceUrl"] : []),
+        ],
+        rawImport: {
+          fileName,
+          row: index,
+          cells: Object.fromEntries(
+            Array.from({ length: sheet.columnCount }, (_, i) => [
+              text(sheet.getRow(1).getCell(i + 1).value) || `column_${i + 1}`,
+              typeof row.getCell(i + 1).value === "number"
+                ? row.getCell(i + 1).value
+                : text(row.getCell(i + 1).value) || null,
+            ]),
+          ) as NonNullable<Tender["rawImport"]>["cells"],
+        },
+        ...(subjects.length
+          ? { subject: subjects.join("; ") }
+          : { subject: "-" }),
+        cpv: text(get("CPV")) || null,
+        ...(text(get("Валюта")) ? { currency: text(get("Валюта")) } : {}),
+        ...(text(get("Опис")) ? { description: text(get("Опис")) } : {}),
+        ...(text(get("Посилання"))
+          ? { sourceUrl: text(get("Посилання")) }
+          : {}),
+        documents: [],
+        aiSummary: "-",
+        aiScore: null,
+        risks: [],
         status: "NEW",
         manager: "—",
         stage: "Аналіз",
         recommendation: "-",
-        publishedAt: publication,
-        publicationDateSource: text(publicationRaw) ? "source" : "tender-id",
-        submissionPeriod: { start, end },
+        ...(publication
+          ? {
+              publishedAt: publication,
+              publicationDateSource: "source" as const,
+            }
+          : {}),
+        submissionPeriod: { ...(start ? { start } : {}), end },
         comment,
         commentText: comment,
         commentColor: color.value,

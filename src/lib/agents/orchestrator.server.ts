@@ -46,6 +46,7 @@ export class TenderOrchestrator {
     settings: PipelineSettings = defaultPipelineSettings,
     only?: AgentId,
     lifecycleInput?: LifecycleInput,
+    options: { excelImport?: boolean; resume?: PipelineRecord } = {},
   ): Promise<PipelineRecord> {
     const now = this.dependencies.now ?? (() => new Date());
     const startedAt = now().toISOString();
@@ -109,6 +110,13 @@ export class TenderOrchestrator {
       ) => Promise<{ result: unknown; provider: string }>,
     ) => {
       const c = config(id);
+      const cached = options.resume?.stages.find(
+        (s) => s.agentId === id && s.status === "success",
+      );
+      if (cached?.result !== undefined) {
+        p.stages.push({ ...structuredClone(cached), cached: true });
+        return cached.result;
+      }
       const start = now();
       let recorded = false;
       const sink = async (log: AgentLog) => {
@@ -229,7 +237,7 @@ export class TenderOrchestrator {
         let baseTender = tender;
         let sourceMetadata: import("./system-contracts.ts").AnalyzerInput["metadata"] =
           {};
-        if (!only || only === "collector") {
+        if ((!only && !options.excelImport) || only === "collector") {
           const collected = await stage(
             "collector",
             {
@@ -279,6 +287,17 @@ export class TenderOrchestrator {
             ...(c.publicationDate ? { publishedAt: c.publicationDate } : {}),
           };
           await checkpoint("COLLECTED");
+        }
+        if (options.excelImport) {
+          skip(
+            "collector",
+            "Excel — попередньо відібрана вибірка. Collector не запускається.",
+          );
+          sourceMetadata = {
+            ...(tender.rawImport?.cells ?? {}),
+            currency: tender.currency ?? null,
+            source: "import",
+          };
         }
         if (only !== "collector") {
           await checkpoint("CLASSIFICATION_PENDING");

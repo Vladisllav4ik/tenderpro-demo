@@ -14,7 +14,7 @@ import {
 import { LocalUsageJournal } from "../src/lib/agents/usage-journal.server.ts";
 import { agentRepository } from "../src/lib/agents/config.server.ts";
 import { canonicalTender } from "../src/lib/tender-model.ts";
-import { tenders } from "../src/lib/demo-data.ts";
+import { tenders } from "./fixtures/tenders.ts";
 import { executePipeline } from "../src/lib/agents/pipeline.ts";
 const secret = "private-unit-test-credential";
 const config = () => ({

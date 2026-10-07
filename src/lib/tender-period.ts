@@ -63,9 +63,9 @@ export function periodRange(period?: {
 export function submissionPeriod(t: Tender, now: Date, today: string) {
   const start =
     t.submissionPeriod?.start ??
-    t.publishedAt ??
-    /^UA-(\d{4}-\d{2}-\d{2})-/.exec(t.id)?.[1] ??
-    today;
+    (t.importSource === "excel"
+      ? ""
+      : (t.publishedAt ?? /^UA-(\d{4}-\d{2}-\d{2})-/.exec(t.id)?.[1] ?? today));
   const end = t.submissionPeriod?.end ?? deadlineDate(t.deadline);
   const timestamp = exactTimestamp(end ?? undefined);
   const calendarEnd = end

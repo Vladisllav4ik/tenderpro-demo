@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve, sep } from "node:path";
-import { tenders } from "../src/lib/demo-data.ts";
+import { tenders } from "./fixtures/tenders.ts";
 import { canonicalTender } from "../src/lib/tender-model.ts";
 import { agentRepository } from "../src/lib/agents/config.server.ts";
 import { TenderOrchestrator } from "../src/lib/agents/orchestrator.server.ts";

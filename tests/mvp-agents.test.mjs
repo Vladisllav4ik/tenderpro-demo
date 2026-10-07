@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { tenders } from "../src/lib/demo-data.ts";
+import { tenders } from "./fixtures/tenders.ts";
 import { canonicalTender, tenderFlow } from "../src/lib/tender-model.ts";
 import {
   worksheetValue,
@@ -82,6 +82,7 @@ test("one canonical Tender supplies table/card/preview documents, requirements a
 test("new connector records cannot inherit demo specifications or documents", () => {
   const t = canonicalTender({
     ...tenders[1],
+    analysis: undefined,
     id: "UA-2026-10-07-000991-a",
     title: "Автокран невідомої моделі",
     analysisPending: true,

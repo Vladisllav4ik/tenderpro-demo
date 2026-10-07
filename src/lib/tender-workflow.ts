@@ -22,12 +22,25 @@ export type TenderStatus =
   | "WON"
   | "COMPLETED_SUCCESS"
   | "COMPLETED_FAILED";
+// Technical lifecycle values used by imported final objects.
 export const statusOptions: {
   value: TenderStatus;
   label: string;
   tone: string;
   hint?: string;
 }[] = [
+  {
+    value: "NEEDS_REVIEW" as TenderStatus,
+    label: "Потребує перегляду",
+    tone: "yellow",
+  },
+  { value: "SUBMITTED" as TenderStatus, label: "Подано", tone: "blue" },
+  {
+    value: "NOT_PARTICIPATING" as TenderStatus,
+    label: "Не беремо",
+    tone: "orange",
+  },
+  { value: "COMPLETED" as TenderStatus, label: "Завершено", tone: "gray" },
   { value: "NEW", label: "Новий", tone: "blue" },
   { value: "WAITING", label: "Очікування", tone: "yellow" },
   { value: "IN_PROGRESS", label: "В роботі", tone: "green" },
