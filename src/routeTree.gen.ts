@@ -24,6 +24,8 @@ import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as RulesRouteImport } from './routes/rules'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as TendersRouteImport } from './routes/tenders'
+import { Route as AgentsIndexRouteImport } from './routes/agents.index'
+import { Route as AgentsAgentIdRouteImport } from './routes/agents.$agentId'
 import { Route as TendersIndexRouteImport } from './routes/tenders.index'
 import { Route as TendersIdRouteImport } from './routes/tenders.$id'
 
@@ -102,6 +104,16 @@ const TendersRoute = TendersRouteImport.update({
   path: '/tenders',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AgentsIndexRoute = AgentsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AgentsRoute,
+} as any)
+const AgentsAgentIdRoute = AgentsAgentIdRouteImport.update({
+  id: '/$agentId',
+  path: '/$agentId',
+  getParentRoute: () => AgentsRoute,
+} as any)
 const TendersIndexRoute = TendersIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -115,7 +127,7 @@ const TendersIdRoute = TendersIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/agents': typeof AgentsRoute
+  '/agents': typeof AgentsRouteWithChildren
   '/analytics': typeof AnalyticsRoute
   '/categories': typeof CategoriesRoute
   '/customers': typeof CustomersRoute
@@ -129,12 +141,13 @@ export interface FileRoutesByFullPath {
   '/rules': typeof RulesRoute
   '/settings': typeof SettingsRoute
   '/tenders': typeof TendersRouteWithChildren
+  '/agents/$agentId': typeof AgentsAgentIdRoute
   '/tenders/$id': typeof TendersIdRoute
+  '/agents/': typeof AgentsIndexRoute
   '/tenders/': typeof TendersIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/agents': typeof AgentsRoute
   '/analytics': typeof AnalyticsRoute
   '/categories': typeof CategoriesRoute
   '/customers': typeof CustomersRoute
@@ -147,13 +160,15 @@ export interface FileRoutesByTo {
   '/profile': typeof ProfileRoute
   '/rules': typeof RulesRoute
   '/settings': typeof SettingsRoute
+  '/agents/$agentId': typeof AgentsAgentIdRoute
   '/tenders/$id': typeof TendersIdRoute
+  '/agents': typeof AgentsIndexRoute
   '/tenders': typeof TendersIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/agents': typeof AgentsRoute
+  '/agents': typeof AgentsRouteWithChildren
   '/analytics': typeof AnalyticsRoute
   '/categories': typeof CategoriesRoute
   '/customers': typeof CustomersRoute
@@ -167,7 +182,9 @@ export interface FileRoutesById {
   '/rules': typeof RulesRoute
   '/settings': typeof SettingsRoute
   '/tenders': typeof TendersRouteWithChildren
+  '/agents/$agentId': typeof AgentsAgentIdRoute
   '/tenders/$id': typeof TendersIdRoute
+  '/agents/': typeof AgentsIndexRoute
   '/tenders/': typeof TendersIndexRoute
 }
 export interface FileRouteTypes {
@@ -188,12 +205,13 @@ export interface FileRouteTypes {
     | '/rules'
     | '/settings'
     | '/tenders'
+    | '/agents/$agentId'
     | '/tenders/$id'
+    | '/agents/'
     | '/tenders/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/agents'
     | '/analytics'
     | '/categories'
     | '/customers'
@@ -206,7 +224,9 @@ export interface FileRouteTypes {
     | '/profile'
     | '/rules'
     | '/settings'
+    | '/agents/$agentId'
     | '/tenders/$id'
+    | '/agents'
     | '/tenders'
   id:
     | '__root__'
@@ -225,13 +245,15 @@ export interface FileRouteTypes {
     | '/rules'
     | '/settings'
     | '/tenders'
+    | '/agents/$agentId'
     | '/tenders/$id'
+    | '/agents/'
     | '/tenders/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  AgentsRoute: typeof AgentsRoute
+  AgentsRoute: typeof AgentsRouteWithChildren
   AnalyticsRoute: typeof AnalyticsRoute
   CategoriesRoute: typeof CategoriesRoute
   CustomersRoute: typeof CustomersRoute
@@ -354,6 +376,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TendersRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/agents/': {
+      id: '/agents/'
+      path: '/'
+      fullPath: '/agents/'
+      preLoaderRoute: typeof AgentsIndexRouteImport
+      parentRoute: typeof AgentsRoute
+    }
+    '/agents/$agentId': {
+      id: '/agents/$agentId'
+      path: '/$agentId'
+      fullPath: '/agents/$agentId'
+      preLoaderRoute: typeof AgentsAgentIdRouteImport
+      parentRoute: typeof AgentsRoute
+    }
     '/tenders/': {
       id: '/tenders/'
       path: '/'
@@ -371,6 +407,19 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AgentsRouteChildren {
+  AgentsAgentIdRoute: typeof AgentsAgentIdRoute
+  AgentsIndexRoute: typeof AgentsIndexRoute
+}
+
+const AgentsRouteChildren: AgentsRouteChildren = {
+  AgentsAgentIdRoute: AgentsAgentIdRoute,
+  AgentsIndexRoute: AgentsIndexRoute,
+}
+
+const AgentsRouteWithChildren =
+  AgentsRoute._addFileChildren(AgentsRouteChildren)
+
 interface TendersRouteChildren {
   TendersIdRoute: typeof TendersIdRoute
   TendersIndexRoute: typeof TendersIndexRoute
@@ -386,7 +435,7 @@ const TendersRouteWithChildren =
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  AgentsRoute: AgentsRoute,
+  AgentsRoute: AgentsRouteWithChildren,
   AnalyticsRoute: AnalyticsRoute,
   CategoriesRoute: CategoriesRoute,
   CustomersRoute: CustomersRoute,

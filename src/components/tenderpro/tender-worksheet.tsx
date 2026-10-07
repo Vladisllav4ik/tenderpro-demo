@@ -120,11 +120,6 @@ export function TenderWorksheet({
   details: (t: Tender) => DetailFlow;
 }) {
   const account = useAccount();
-  const navigation = [
-    ["/tenders", "Тендери"],
-    ["/settings", "Налаштування"],
-    ...(account?.role === "ADMIN" ? [["/agents", "AI Агенти"]] : []),
-  ] as const;
   const navigate = useNavigate();
   const [processing, setProcessing] = useState(false);
   const { state, setState, viewTender, saveComment, now, ready } = useDemo();
@@ -504,34 +499,6 @@ export function TenderWorksheet({
       aria-label="Робочий лист тендерів"
     >
       <header className="sheet-toolbar">
-        <Link
-          to="/tenders"
-          className="sheet-brand"
-          aria-label="TenderPro — Тендери"
-        >
-          <span className="sheet-mark">
-            <Box />
-          </span>
-          <strong>TenderPro</strong>
-        </Link>
-        <Popover>
-          <PopoverTrigger asChild>
-            <button className="sheet-tool sheet-section">
-              <Columns3 />
-              <span>Тендери</span>
-              <ChevronDown />
-            </button>
-          </PopoverTrigger>
-          <PopoverContent className="sheet-menu" align="start">
-            <p className="sheet-menu-heading">Робочий простір</p>
-            {navigation.map(([to, label]) => (
-              <Link className="sheet-nav-link" key={to} to={to}>
-                {label}
-                {to === "/tenders" && <span className="sheet-nav-dot" />}
-              </Link>
-            ))}
-          </PopoverContent>
-        </Popover>
         <label className="sheet-search">
           <Search />
           <input

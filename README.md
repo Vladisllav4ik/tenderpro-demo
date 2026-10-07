@@ -1,3 +1,5 @@
+Поточний ADMIN UI, global hotbar та agent screens: [ADMIN_UI.md](ADMIN_UI.md).
+
 Поточні правки таблиці, ПДВ, Zakupivli links і document preview: [TABLE_CARD_UPDATES.md](TABLE_CARD_UPDATES.md).
 
 Поточна інтеграція Prozorro/document pipeline та результати реального crash-test: [SOURCE_ENRICHMENT.md](SOURCE_ENRICHMENT.md). Нижче також збережені описи попередніх етапів MVP.
