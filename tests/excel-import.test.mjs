@@ -49,6 +49,67 @@ test("blank template roundtrip has canonical headers and imports no invented rec
   assert.equal(parsed.total, 0);
   assert.equal(parsed.tenders.length, 0);
 });
+
+test("prefixed SpreadsheetML parses 10 rows from Імпорт alongside Контроль_джерело and Інструкція", async () => {
+  const book = await filled(10);
+  const control = book.addWorksheet("Контроль_джерело");
+  control.addRow(["Додатковий аркуш, не дані імпорту"]);
+  const { default: JSZip } = await import("jszip");
+  const zip = await JSZip.loadAsync(await book.xlsx.writeBuffer());
+  for (const entry of Object.values(zip.files)) {
+    if (
+      !/^xl\/(?:workbook|styles|sharedStrings|worksheets\/sheet\d+)\.xml$/.test(
+        entry.name,
+      )
+    )
+      continue;
+    const xml = (await entry.async("string"))
+      .replace(
+        'xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"',
+        'xmlns:x="http://schemas.openxmlformats.org/spreadsheetml/2006/main"',
+      )
+      .replace(/(<\/?)([A-Za-z_][\w.-]*)(?=[\s/>])/g, "$1x:$2");
+    zip.file(entry.name, xml);
+  }
+  const parsed = await parseImportWorkbook(
+    await zip.generateAsync({ type: "uint8array" }),
+  );
+  assert.equal(parsed.total, 10);
+  assert.equal(parsed.tenders.length, 10);
+  assert.deepEqual(parsed.issues, []);
+  assert.equal(parsed.tenders[0].customer, "QA замовник");
+  assert.equal(parsed.tenders[0].budget, 100000);
+  assert.equal(parsed.tenders[0].quantity, 2);
+  assert.equal(
+    parsed.tenders[0].submissionPeriod.end,
+    "2026-10-14T15:00:00.000Z",
+  );
+});
+
+test("fallback reads the first worksheet when Імпорт is absent", async () => {
+  const book = await filled(10);
+  book.getWorksheet("Імпорт").name = "Дані";
+  assert.equal(
+    (await parseImportWorkbook(await book.xlsx.writeBuffer())).tenders.length,
+    10,
+  );
+});
+
+test("unreadable XLSX returns a friendly error and logs technical diagnostics", async () => {
+  const messages = [];
+  const original = console.error;
+  console.error = (...args) => messages.push(args);
+  try {
+    await assert.rejects(() => parseImportWorkbook(new Uint8Array([1, 2, 3])), {
+      message: "Не вдалося прочитати XLSX. Перевірте формат файлу.",
+    });
+  } finally {
+    console.error = original;
+  }
+  assert.equal(messages.length, 1);
+  assert.match(messages[0][0], /Workbook load failed/);
+  assert.ok(messages[0][1] instanceof Error);
+});
 test("filled template roundtrip parses Kyiv date/time, numbers, empty colors and requirements", async () => {
   const book = await filled();
   const { tenders, issues } = await parseImportWorkbook(

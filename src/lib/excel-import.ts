@@ -166,9 +166,56 @@ const list = (value: unknown) =>
     .map((v) => v.trim())
     .filter(Boolean);
 
+async function createWorkbook() {
+  // Vite resolves ExcelJS's browser build; CJS/ESM export shapes can differ.
+  const mod = await import("exceljs");
+  const Workbook = mod.default?.Workbook ?? mod.Workbook;
+  if (typeof Workbook !== "function")
+    throw new Error("ExcelJS Workbook export is unavailable.");
+  return new Workbook();
+}
+
+async function normalizeSpreadsheetXML(bytes: ArrayBuffer | Uint8Array) {
+  const mod = await import("jszip");
+  const Zip = mod.default ?? mod;
+  const zip = await Zip.loadAsync(bytes);
+  let changed = false;
+  for (const entry of Object.values(zip.files)) {
+    if (
+      entry.dir ||
+      !entry.name.startsWith("xl/") ||
+      !entry.name.endsWith(".xml")
+    )
+      continue;
+    const original = await entry.async("string");
+    let xml = original;
+    // ExcelJS matches SpreadsheetML tag names literally, ignoring namespace prefixes.
+    // Preserve relationship attributes such as r:id and other XML namespaces.
+    for (const match of original.matchAll(
+      /xmlns:([A-Za-z_][\w.-]*)=["']http:\/\/schemas\.openxmlformats\.org\/spreadsheetml\/2006\/main["']/g,
+    )) {
+      const prefix = match[1]!.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      xml = xml.replace(
+        new RegExp(`(<\\/?)(?:${prefix}:)([A-Za-z_][\\w.-]*)(?=[\\s/>])`, "g"),
+        "$1$2",
+      );
+      // Give the now-unprefixed elements their original namespace.
+      if (!/\sxmlns=["']/.test(xml))
+        xml = xml.replace(
+          /(<[A-Za-z_][\w.-]*)(?=[\s/>])/,
+          '$1 xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"',
+        );
+    }
+    if (xml !== original) {
+      zip.file(entry.name, xml);
+      changed = true;
+    }
+  }
+  return changed ? zip.generateAsync({ type: "uint8array" }) : bytes;
+}
+
 export async function createImportTemplateWorkbook() {
-  const { default: ExcelJS } = await import("exceljs");
-  const book = new ExcelJS.Workbook();
+  const book = await createWorkbook();
   book.creator = "TenderPro";
   const sheet = book.addWorksheet("Імпорт", {
     views: [{ state: "frozen", ySplit: 1 }],
@@ -244,11 +291,17 @@ export async function parseImportWorkbook(
   existing: ReadonlySet<string> = new Set(),
   fileName = "",
 ): Promise<ImportResult> {
-  const { default: ExcelJS } = await import("exceljs");
-  const book = new ExcelJS.Workbook();
-  await book.xlsx.load(
-    bytes as unknown as Parameters<typeof book.xlsx.load>[0],
-  );
+  let book: Awaited<ReturnType<typeof createWorkbook>>;
+  try {
+    book = await createWorkbook();
+    const compatibleBytes = await normalizeSpreadsheetXML(bytes);
+    await book.xlsx.load(
+      compatibleBytes as unknown as Parameters<typeof book.xlsx.load>[0],
+    );
+  } catch (error) {
+    console.error("[TenderPro XLSX parser] Workbook load failed:", error);
+    throw new Error("Не вдалося прочитати XLSX. Перевірте формат файлу.");
+  }
   const sheet = book.getWorksheet("Імпорт") ?? book.worksheets[0];
   if (!sheet) throw new Error("У файлі немає аркуша з даними.");
   const columns = new Map<Header, number>();
