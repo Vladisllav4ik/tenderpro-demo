@@ -1,8 +1,8 @@
 # TenderPro demo
 
-Agent 2 тепер має серверний Responses API adapter для тесту одного тендера з preview без запису. Model: `gpt-5.4-mini`, default mode: mock. Локальний запуск і перемикання OpenAI: [AGENT2_OPENAI.md](AGENT2_OPENAI.md).
+Технічний pipeline усіх 4 агентів готовий: Collector → Classifier → Analyzer → Lifecycle. Agent 2/3 підтримують серверний Responses API, Agent 4 — rules та AI fallback; результати preview/staging без overwrite. Інструкція: [AGENT_SYSTEM.md](AGENT_SYSTEM.md).
 
-Поточний етап — MVP: демо-вхід → Тендери → серверні mock-агенти → таблиця/картка → персональні налаштування. USER бачить лише Тендери й Налаштування; ADMIN також AI Агенти. Опис архітектури та меж демо: [MVP_ARCHITECTURE.md](MVP_ARCHITECTURE.md).
+Поточний етап — MVP: демо-вхід → Тендери → окремі тести агентів або pipeline на одному тендері → staging/history → таблиця/картка. USER бачить Тендери й Налаштування; ADMIN також AI Агенти. Попередня основа: [MVP_ARCHITECTURE.md](MVP_ARCHITECTURE.md).
 
 Таблиця тендерів та демонстраційна AI-обробка. React 19, TanStack Start, Vite 8 та Nitro.
 
@@ -33,7 +33,7 @@ npm run preview -- --host 127.0.0.1 --port 3002
 3. Framework: автоматичне визначення TanStack Start. Build Command: `npm run build`; Install Command: `npm ci`; Node.js: `22.x`.
 4. Залишити Output Directory без ручного override: Nitro генерує повний Vercel Build Output, включно з SSR Function і маршрутизацією.
 
-Для mock-демо не потрібні ключі AI чи база даних. Реальний тест Agent 2 потребує серверного `OPENAI_API_KEY` у локальному `.env` та `npm run dev`. Production запити з демо-ADMIN заблоковані до закритої авторизації. Конфігурація закріплює Nitro preset `vercel` та Node.js 22.
+Для mock-демо не потрібні ключі AI чи база даних. Реальні AI тести потребують серверного `OPENAI_API_KEY` у локальному `.env` та `npm run dev`. Production запити з демо-ADMIN заблоковані до закритої авторизації. Конфігурація закріплює Nitro preset `vercel` та Node.js 22.
 
 Офіційна документація: [TanStack Start / Lovable на Vercel](https://vercel.com/docs/frameworks/full-stack/tanstack-start).
 
@@ -47,7 +47,7 @@ npm run preview -- --host 127.0.0.1 --port 3002
 - Фільтри: `/tenders/UA-2026-08-25-006722-a`.
 - Excel demo import → AI-скринінг → картка → коментар → автоматичний статус.
 
-Початкові тендери та документи — fixtures. Excel імпортує перевірені рядки користувача, дублікати ID пропускаються. Меню «Тендери» запускає серверну mock-обробку до 100 видимих записів без реального OpenAI чи Prozorro API. Дані та налаштування зберігаються окремо для акаунтів у localStorage. Перевірки складу, 1С та постачальників у MVP немає. Демо-вхід і серверні конфігурації/журнали в пам’яті призначені для прототипу; production auth та backend repositories потрібні для реальних акаунтів.
+Початкові тендери та документи — fixtures. Excel імпортує перевірені рядки користувача, дублікати ID пропускаються. Меню «Тендери» запускає серверну mock-обробку до 100 видимих записів без реального OpenAI чи Prozorro API. Дані та налаштування зберігаються окремо для акаунтів у localStorage. Перевірки складу, 1С та постачальників у MVP немає. Конфігурації агентів, thresholds, audit/staging та rechecks зберігаються у приватному локальному server storage; demo sessions — у пам’яті. Перед production агентами/Vercel потрібні production auth, DB adapters та worker.
 
 Невідомі технічні параметри позначені для уточнення. Збірка має неблокуючі попередження про великий JS chunk і `vite-tsconfig-paths` у конфігурації Lovable.
 

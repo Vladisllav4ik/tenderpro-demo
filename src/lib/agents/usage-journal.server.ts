@@ -1,6 +1,7 @@
 import { appendFile, mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { AgentLog } from "./contracts.ts";
+import { sanitizeSnapshot } from "./snapshots.server.ts";
 export interface UsageJournal {
   append(log: AgentLog): Promise<void>;
   list(): Promise<AgentLog[]>;
@@ -18,10 +19,14 @@ export class LocalUsageJournal implements UsageJournal {
   append(log: AgentLog) {
     const operation = this.queue.then(async () => {
       await this.prepare();
-      await appendFile(this.path, JSON.stringify(log) + "\n", {
-        encoding: "utf8",
-        mode: 0o600,
-      });
+      await appendFile(
+        this.path,
+        JSON.stringify(sanitizeSnapshot(log)) + "\n",
+        {
+          encoding: "utf8",
+          mode: 0o600,
+        },
+      );
     });
     this.queue = operation.catch(() => {});
     return operation;

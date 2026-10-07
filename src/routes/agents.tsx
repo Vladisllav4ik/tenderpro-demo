@@ -2,13 +2,13 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 import {
   getAgentAdmin,
   updateAgentConfig,
-  processTenders,
   testFilterTender,
 } from "@/lib/agents/client";
 import type { AgentConfig } from "@/lib/agents/contracts";
 import { useState } from "react";
 import { useDemo } from "@/lib/demo-store";
 import { toast } from "sonner";
+import { AgentSystemTest } from "@/components/tenderpro/agent-system-tests";
 import {
   filterInputFromTender,
   type FilterTestReply,
@@ -26,6 +26,15 @@ function AgentAdmin() {
   const [configs, setConfigs] = useState(initial.configs);
   const [logs, setLogs] = useState(initial.logs);
   const [busy, setBusy] = useState(false);
+  const [savedConfigs, setSavedConfigs] = useState(initial.configs);
+  const [histories, setHistories] = useState(initial.histories);
+  const [pending, setPending] = useState(initial.pendingRechecks);
+  async function refresh() {
+    const data = await getAgentAdmin();
+    setLogs(data.logs);
+    setHistories(data.histories);
+    setPending(data.pendingRechecks);
+  }
   const [selectedId, setSelectedId] = useState("");
   const [preview, setPreview] = useState<FilterTestReply | null>(null);
   const [savedFilter, setSavedFilter] = useState(
@@ -41,44 +50,24 @@ function AgentAdmin() {
     <section className="max-w-5xl space-y-6">
       <h1 className="text-2xl font-bold">AI Агенти</h1>
       <p>
-        ADMIN · Agent 2 підтримує mock і OpenAI для тесту одного тендера.
-        Масовий pipeline та агенти 1/3/4 залишаються mock; Prozorro не
-        підключено. Конфігурації — у пам’яті сервера; тести Agent 2 зберігають
-        usage у локальному серверному журналі.
+        ADMIN · Collector → Classifier → Analyzer → Lifecycle. Collector: mock /
+        data-source; Classifier і Analyzer: mock / OpenAI; Lifecycle: rules /
+        mock / OpenAI / hybrid. Один тендер за запуск, результати лише preview /
+        staging. Prozorro connector ще не підключено.
       </p>
       {!initial.journalAvailable && (
         <p role="alert">Локальний журнал недоступний.</p>
       )}
-      <button
-        disabled={busy || !ready}
-        className="rounded border px-4 py-2"
-        onClick={async () => {
-          setBusy(true);
-          try {
-            const result = await processTenders({
-              data: state.tenders.slice(
-                0,
-                Math.min(
-                  ...configs
-                    .filter((c) => c.enabled)
-                    .map((c) => c.limits.batchSize),
-                  100,
-                ),
-              ),
-            });
-            setLogs((await getAgentAdmin()).logs);
-            toast.success(
-              `Тест pipeline: ${result.accepted} прийнято, ${result.rejected} відсіяно. Дані таблиці не змінено.`,
-            );
-          } catch (e) {
-            toast.error(e instanceof Error ? e.message : "Помилка");
-          } finally {
-            setBusy(false);
-          }
-        }}
-      >
-        Тестовий запуск mock-pipeline
-      </button>
+      <AgentSystemTest
+        configs={configs}
+        savedConfigs={savedConfigs}
+        busy={busy}
+        setBusy={setBusy}
+        refresh={refresh}
+        histories={histories}
+        pending={pending}
+        settings={initial.pipelineSettings}
+      />
       {configs.map((c) => {
         const entries = logs.filter((l) => l.agentId === c.id);
         return (
@@ -107,7 +96,7 @@ function AgentAdmin() {
                 onChange={(e) => edit(c.id, { model: e.target.value })}
               />
             </label>
-            {c.id === "filter" && (
+            {(c.id === "filter" || c.id === "detail") && (
               <label className="block">
                 Режим{" "}
                 <select
@@ -124,6 +113,68 @@ function AgentAdmin() {
                   <option value="openai">OpenAI — реальний запит</option>
                 </select>
               </label>
+            )}
+            {c.id === "collector" && (
+              <label className="block">
+                Data source{" "}
+                <select
+                  className="ml-3 rounded border p-2"
+                  value={c.source ?? "mock"}
+                  onChange={(e) =>
+                    edit(c.id, {
+                      source: e.target.value as "mock" | "data-source",
+                    })
+                  }
+                >
+                  <option value="mock">mock — fixture</option>
+                  <option value="data-source">
+                    data-source — потрібен connector
+                  </option>
+                </select>
+              </label>
+            )}
+            {c.id === "status" && (
+              <div className="flex flex-wrap gap-3">
+                <label>
+                  Режим{" "}
+                  <select
+                    className="ml-3 rounded border p-2"
+                    value={c.mode ?? "rule-based"}
+                    onChange={(e) =>
+                      edit(c.id, {
+                        mode: e.target.value as NonNullable<
+                          AgentConfig["mode"]
+                        >,
+                      })
+                    }
+                  >
+                    <option value="rule-based">rule-based — 0 tokens</option>
+                    <option value="mock">mock — 0 tokens</option>
+                    <option value="openai">
+                      OpenAI — rules + AI evaluation
+                    </option>
+                    <option value="hybrid">
+                      hybrid — rules → OpenAI fallback
+                    </option>
+                  </select>
+                </label>
+                <label>
+                  Recheck delay (seconds)
+                  <input
+                    className="ml-2 w-24 rounded border p-2"
+                    aria-label="Recheck delay"
+                    type="number"
+                    min="180"
+                    max="300"
+                    value={c.recheckDelaySeconds ?? 180}
+                    onChange={(e) =>
+                      edit(c.id, {
+                        recheckDelaySeconds: Number(e.target.value),
+                      })
+                    }
+                  />
+                </label>
+              </div>
             )}
             <label className="block">
               System prompt
@@ -163,6 +214,11 @@ function AgentAdmin() {
                 try {
                   const saved = await updateAgentConfig({ data: c });
                   edit(c.id, saved);
+                  setSavedConfigs((values) =>
+                    values.map((value) =>
+                      value.id === saved.id ? saved : value,
+                    ),
+                  );
                   if (c.id === "filter") {
                     setSavedFilter(saved);
                     setPreview(null);
@@ -177,6 +233,16 @@ function AgentAdmin() {
             >
               Зберегти {c.name}
             </button>
+            {c.id !== "filter" && (
+              <AgentSystemTest
+                agentId={c.id}
+                configs={configs}
+                savedConfigs={savedConfigs}
+                busy={busy}
+                setBusy={setBusy}
+                refresh={refresh}
+              />
+            )}
             {c.id === "filter" && (
               <div className="space-y-3 rounded border p-4">
                 <h3 className="font-semibold">Тест Agent 2 · один тендер</h3>
@@ -309,7 +375,7 @@ function AgentAdmin() {
               {entries.reduce((n, l) => n + l.processed, 0)} · Errors:{" "}
               {entries.reduce((n, l) => n + l.errors, 0)} · Usage:{" "}
               {entries.reduce((n, l) => n + (l.totalTokens ?? 0), 0)} відомих
-              tokens
+              tokens (останні 200 записів)
             </p>
             <details>
               <summary>Logs ({entries.length})</summary>

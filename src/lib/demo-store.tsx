@@ -1,5 +1,7 @@
 import { useAccount, accountKey, migrateAccountStorage } from "./account";
 import { canonicalTender } from "./tender-model";
+import { queueStatusRecheck } from "./agents/client";
+import { lifecycleInputFromTender } from "./agents/system-contracts";
 import {
   createContext,
   useContext,
@@ -198,6 +200,14 @@ export function DemoProvider({ children }: { children: ReactNode }) {
     try {
       localStorage.setItem(storageKey, JSON.stringify(next));
     } catch {}
+    const changed = next.tenders.find((t) => t.id === id);
+    if (changed)
+      void queueStatusRecheck({ data: lifecycleInputFromTender(changed) })
+        .then((reply) => {
+          if (!reply.ok)
+            console.warn("Не вдалося поставити lifecycle recheck у чергу.");
+        })
+        .catch(() => console.warn("Lifecycle recheck: сервер недоступний."));
   };
   const setCommentColor = (
     id: string,
@@ -215,13 +225,24 @@ export function DemoProvider({ children }: { children: ReactNode }) {
           : t,
       ),
     }));
-  const syncLifecycle = (id: string, data: NonNullable<Tender["lifecycle"]>) =>
+  const syncLifecycle = (
+    id: string,
+    data: NonNullable<Tender["lifecycle"]>,
+  ) => {
+    const tender = stateRef.current.tenders.find((t) => t.id === id);
+    if (tender)
+      void queueStatusRecheck({
+        data: lifecycleInputFromTender(
+          applyLifecycle(tender, data, new Date(), validDelay),
+        ),
+      }).catch(() => console.warn("Lifecycle recheck: сервер недоступний."));
     setState((s) => ({
       ...s,
       tenders: s.tenders.map((t) =>
         t.id === id ? applyLifecycle(t, data, new Date(), validDelay) : t,
       ),
     }));
+  };
   const documentAction = (
     id: string,
     name: string,

@@ -1,5 +1,7 @@
 import type { Tender } from "../demo-data.ts";
 export type AgentId = "collector" | "filter" | "detail" | "status";
+export type JsonValue =
+  string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
 export type AgentConfig = {
   id: AgentId;
   name: string;
@@ -7,6 +9,9 @@ export type AgentConfig = {
   enabled: boolean;
   model: string;
   provider?: "mock" | "openai";
+  source?: "mock" | "data-source";
+  mode?: "rule-based" | "mock" | "openai" | "hybrid";
+  recheckDelaySeconds?: number;
   systemPrompt: string;
   version: number;
   promptVersion: string;
@@ -28,7 +33,14 @@ export type AgentLog = {
   message: string;
   accountId: string;
   mock: boolean;
-  provider?: "mock" | "openai";
+  provider?: "mock" | "openai" | "rule-based" | "data-source";
+  pipelineId?: string | null;
+  agentName?: string;
+  startedAt?: string;
+  finishedAt?: string;
+  error?: string | null;
+  inputSnapshot?: JsonValue;
+  outputSnapshot?: JsonValue;
   tenderId?: string;
   model?: string;
   timestamp?: string;
@@ -40,8 +52,8 @@ export type AgentLog = {
   reasoningTokens?: number | null;
   status?: "success" | "error";
   errorMessage?: string;
-  requestId?: string;
-  responseId?: string;
+  requestId?: string | null;
+  responseId?: string | null;
   attempt?: number;
   promptVersion?: string;
 };
