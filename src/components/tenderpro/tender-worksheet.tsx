@@ -1,3 +1,4 @@
+import { LotIndicator } from "./tender-source-details";
 import {
   chronologicalCompare,
   expectedValueLabel,
@@ -924,13 +925,16 @@ export function TenderWorksheet({
                     {c.key === "number" ? (
                       index + 1
                     ) : c.key === "title" ? (
-                      <button
-                        className="sheet-title"
-                        title={t.title}
-                        onClick={() => setSelectedId(t.id)}
-                      >
-                        {t.title}
-                      </button>
+                      <>
+                        <button
+                          className="sheet-title"
+                          title={t.title}
+                          onClick={() => setSelectedId(t.id)}
+                        >
+                          {t.title}
+                        </button>
+                        <LotIndicator tender={t} />
+                      </>
                     ) : c.key === "topCategory" ? (
                       <span className="sheet-category" title={t.category}>
                         {(() => {

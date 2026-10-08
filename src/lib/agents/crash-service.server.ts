@@ -6,6 +6,7 @@ import { mergeCrashResult } from "./crash-merge.ts";
 import type { TenderOrchestrator } from "./orchestrator.server.ts";
 import type { PipelineSettings } from "./system-contracts.ts";
 import type { SourcePreparationService } from "./source-contracts.ts";
+import { fingerprints, nextWatch } from "./watcher-model.server.ts";
 export class CrashService {
   private repository: CrashRepository;
   private orchestrator: TenderOrchestrator;
@@ -27,7 +28,7 @@ export class CrashService {
       const provenance = Object.fromEntries(
         (t.sourceFields ?? []).map((field) => [
           field,
-          { source: "import" as const },
+          { source: "import" as const, sourceType: "import" as const },
         ]),
       );
       const raw = {
@@ -68,7 +69,10 @@ export class CrashService {
       try {
         // Only raw import/source/documents may seed a rerun, never prior AI outputs.
         const preparation = this.preparation
-          ? await this.preparation.prepare(claimed.rawImportedData)
+          ? await this.preparation.prepare(
+              claimed.rawImportedData,
+              claimed.preparation,
+            )
           : undefined;
         if (preparation) {
           claimed.preparation = preparation;
@@ -131,6 +135,29 @@ export class CrashService {
             ...claimed,
             ...merged,
             pipeline,
+            ...(preparation?.rawProzorroData
+              ? {
+                  watcher: {
+                    lastCheckedAt: preparation.fetchedAt,
+                    lastChangedAt: claimed.watcher?.lastChangedAt ?? null,
+                    nextCheckAt: nextWatch(
+                      preparation.rawProzorroData as Record<string, any>,
+                    ),
+                    changeDetected: false,
+                    fingerprints: fingerprints(
+                      preparation.rawProzorroData as Record<string, any>,
+                      preparation.documents,
+                    ),
+                    plan: null,
+                    reason: [],
+                    agent3Started: false,
+                    scope: [],
+                    tokensUsed: 0,
+                    aiCalls: 0,
+                    error: null,
+                  },
+                }
+              : {}),
             processing: false,
             updatedAt: new Date().toISOString(),
           },

@@ -96,7 +96,12 @@ export class AnalyzerService {
     if (config.provider === "openai")
       return executeStructured(
         { id: input.base.id, ...input },
-        config,
+        {
+          ...config,
+          systemPrompt:
+            config.systemPrompt +
+            "\nQuestions are participant claims, not established facts. Buyer answers are a separate source: sourceType=answer and sourceId=question id. Do not conclude discrimination or illegality from participant wording. A promise of documentation changes does not establish changed requirements. Check supplied changeVerified and actual document versions; unknown impact stays unknown. Structured tender/lot/item and exact import values have priority over documents, answers and AI.",
+        },
         accountId,
         record,
         analyzerResultSchema,
@@ -181,6 +186,12 @@ export function evaluateLifecycleRules(
       "LOST",
       "Надано підтверджений результат: не перемогли.",
       "result.lost",
+    );
+  if (input.sourceStatus === "closed")
+    return result(
+      "COMPLETED",
+      "Процедуру завершено; результат нашої участі не підтверджено.",
+      "source.closed",
     );
   const stamp = exactTimestamp(input.submissionDeadline ?? undefined);
   const today = new Intl.DateTimeFormat("sv-SE", {

@@ -140,6 +140,19 @@ export function DemoProvider({ children }: { children: ReactNode }) {
     }));
   }, [account?.id]);
   useEffect(() => {
+    if (!account) return;
+    const refresh = () => {
+      if (document.visibilityState === "visible")
+        void refreshTenders().catch(() => {});
+    };
+    const timer = setInterval(refresh, 30000);
+    window.addEventListener("focus", refresh);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener("focus", refresh);
+    };
+  }, [account?.id, refreshTenders]);
+  useEffect(() => {
     let active = true;
     try {
       // Purge every legacy account's tender lists; keep preferences and server agent configuration.

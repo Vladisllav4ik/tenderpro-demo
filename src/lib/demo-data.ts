@@ -1,4 +1,5 @@
 export type Tender = {
+  hierarchy?: import("./tender-hierarchy.ts").TenderHierarchy;
   crashRecordId?: string;
   sourceFields?: string[];
   rawImport?: {
@@ -14,6 +15,10 @@ export type Tender = {
       evidence?: string;
       sourceId?: string;
       confidence?: number;
+      sourceType?: "import" | "prozorro_tender" | "prozorro_lot" | "prozorro_item" | "document" | "question" | "answer" | "agent";
+      lotId?: string;
+      documentId?: string;
+      questionId?: string;
     }
   >;
   currency?: string;

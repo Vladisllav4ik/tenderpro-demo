@@ -33,6 +33,32 @@ export function initializeCrashStorage() {
         agentLogs.splice(0);
         await crashRepository.clear();
       }
+      if (!runningAgentAccounts.size) {
+        const { mergePreparedSource } =
+          await import("./watcher-service.server");
+        for (const r of await crashRepository.list()) {
+          if (
+            !r.processing &&
+            r.preparation?.rawProzorroData &&
+            !r.finalMergedTender.hierarchy
+          ) {
+            const claimed = await crashRepository.claim(r.recordId, true);
+            if (claimed?.preparation)
+              await crashRepository.save(
+                {
+                  ...claimed,
+                  processing: false,
+                  finalMergedTender: mergePreparedSource(
+                    claimed,
+                    claimed.preparation,
+                  ),
+                },
+                claimed.revision,
+              );
+          }
+        }
+      }
+      (await import("./watcher-runtime.server")).startTenderWatcher();
     })().catch(() => {
       initializing = undefined;
       throw new Error("Crash-test storage недоступний.");
@@ -87,6 +113,17 @@ export async function importedState() {
       },
       account.role,
     ),
+  );
+}
+export async function checkChangesNow(raw: { recordId?: string }) {
+  await requireAccount(true);
+  await initializeCrashStorage();
+  const input = z
+    .object({ recordId: z.string().uuid().optional() })
+    .strict()
+    .parse(raw);
+  return (await import("./watcher-runtime.server")).checkImportedChanges(
+    input.recordId,
   );
 }
 export async function importAndRunCrash(raw: { tenders: Tender[] }) {

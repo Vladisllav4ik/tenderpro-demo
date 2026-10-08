@@ -12,6 +12,7 @@ import {
   statusLabel,
 } from "./tender-workflow.ts";
 import { periodRange } from "./tender-period.ts";
+import { aggregateHierarchy } from "./tender-hierarchy.ts";
 
 export const sheetColumns = [
   { key: "number", label: "№", width: 44 },
@@ -381,6 +382,26 @@ export function worksheetValue(
   index: number,
   now: Date,
 ): string | number {
+  const aggregate = aggregateHierarchy(t);
+  const locked = (field: string) => (t.sourceFields ?? []).includes(field);
+  if (key === "quantity" && !locked("quantity") && aggregate.multipleUnits)
+    return "Кілька позицій";
+  if (key === "unit" && !locked("unit") && aggregate.multipleUnits) return "-";
+  if (
+    key === "auctionPeriod" &&
+    !locked("auctionPeriod") &&
+    aggregate.multipleAuctions
+  )
+    return `${new Set(aggregate.auctions.map((a) => a.date)).size} аукціони`;
+  if (
+    key === "deliveryPeriod" &&
+    !locked("deliveryPeriod") &&
+    aggregate.multipleDelivery
+  )
+    return "Кілька строків";
+  if (key === "address" && !locked("address") && aggregate.multipleAddresses)
+    return "Кілька адрес";
+  if (key === "period" && aggregate.multipleSubmission) return "Кілька строків";
   if (key === "number") return index + 1;
   if (key === "comment") return t.commentText ?? t.comment ?? "";
   if (key === "period") {

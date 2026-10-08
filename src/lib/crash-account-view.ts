@@ -5,7 +5,7 @@ export function crashAccountView(
   role: Account["role"],
 ): CrashRecord {
   if (role === "ADMIN") return record;
-  const { preparation, agent3Debug, ...visible } = record;
+  const { preparation, agent3Debug, watcher, deltaResults, sourceSnapshots, ...visible } = record;
   return {
     ...visible,
     agent2Result: null,

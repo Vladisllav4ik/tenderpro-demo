@@ -390,6 +390,10 @@ export class TenderOrchestrator {
                           "items",
                           "lots",
                           "features",
+                          "questions",
+                          "revisions",
+                          "complaints",
+                          "dateModified",
                         ]
                           .filter((k) => raw[k] !== undefined)
                           .map((k) => [k, raw[k]]),
@@ -403,8 +407,24 @@ export class TenderOrchestrator {
                       sourceUrl: d.url,
                       parseStatus: d.parseStatus,
                       downloadStatus: d.downloadStatus,
+                      datePublished: d.datePublished,
+                      dateModified: d.dateModified,
+                      lotId: d.lotId ?? null,
+                      versionId: d.versionId ?? null,
                     }),
                   );
+                  const hierarchy = baseTender.hierarchy;
+                  input.sourceData = {
+                    ...input.sourceData,
+                    hierarchy: hierarchy
+                      ? {
+                          ...hierarchy,
+                          documentVersions: hierarchy.documentVersions.map(
+                            ({ text, cacheKey, ...metadata }) => metadata,
+                          ),
+                        }
+                      : null,
+                  };
                 }
                 await stage("detail", input, async (sink) => {
                   const r = await new AnalyzerService().execute(

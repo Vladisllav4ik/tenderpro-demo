@@ -5,6 +5,8 @@ import {
   workspaceZakupivliURL,
 } from "@/lib/tender-presentation";
 import { DocumentViewer } from "./document-viewer";
+import { LotDetails, QuestionsDetails } from "./tender-source-details";
+import { worksheetValue } from "@/lib/worksheet-model";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import {
@@ -35,7 +37,14 @@ import { prozorroLink } from "@/lib/worksheet-model";
 import type { DetailFlow, DetailDocument } from "@/lib/tender-detail";
 import { periodRange } from "@/lib/tender-period";
 
-const tabs = ["Огляд", "AI аналіз", "Документи", "Вимоги", "Історія"];
+const tabs = [
+  "Огляд",
+  "AI аналіз",
+  "Документи",
+  "Вимоги",
+  "Звернення",
+  "Історія",
+];
 export function TenderCard({
   tender: t,
   flow,
@@ -106,6 +115,7 @@ export function TenderCard({
     ["Назва", t.title],
     ["ID", t.id],
     ["Замовник", t.customer],
+    ["Код замовника", t.hierarchy?.customerCode ?? "-"],
     ["Категорія", t.category],
     ["CPV", t.cpv ?? "-"],
     ["Офіційна назва", t.officialTitle ?? "-"],
@@ -119,15 +129,15 @@ export function TenderCard({
         <small>{vatLabel(t.vatIncluded)}</small>
       </>,
     ],
-    ["Кількість", t.quantity ?? "-"],
+    ["Кількість", worksheetValue(t, "quantity", 0, now)],
     ["Од. виміру", t.unit ?? "-"],
     [
       "Ціна за одиницю",
       t.unitPrice === undefined ? "-" : money(t.unitPrice, t.currency),
     ],
-    ["Аукціон", periodRange(t.auctionPeriod)],
-    ["Поставка", periodRange(t.deliveryPeriod)],
-    ["Адреса", t.address ?? "-"],
+    ["Аукціон", worksheetValue(t, "auctionPeriod", 0, now)],
+    ["Поставка", worksheetValue(t, "deliveryPeriod", 0, now)],
+    ["Адреса", worksheetValue(t, "address", 0, now)],
     ["Дата публікації", t.publishedAt ? fullDate(t.publishedAt) : "-"],
     ["Дедлайн", t.deadline],
     ["Залишилось", period.label],
@@ -212,6 +222,29 @@ export function TenderCard({
                 </dd>
               </div>
             </dl>
+            {(t.hierarchy?.lots.length ?? 0) > 0 && (
+              <>
+                <h2>Лоти · {t.hierarchy!.lots.length}</h2>
+                <LotDetails tender={t} />
+              </>
+            )}
+            {(t.hierarchy?.items.filter((i) => !i.lotId).length ?? 0) > 0 && (
+              <details>
+                <summary>Позиції без лота</summary>
+                <ul>
+                  {t
+                    .hierarchy!.items.filter((i) => !i.lotId)
+                    .map((i) => (
+                      <li key={i.id}>
+                        {i.description ?? "-"} · {i.quantity ?? "-"}{" "}
+                        {i.unit ?? "-"} · CPV {i.cpv ?? "-"} ·{" "}
+                        {periodRange(i.delivery ?? undefined)} ·{" "}
+                        {i.address ?? "-"}
+                      </li>
+                    ))}
+                </ul>
+              </details>
+            )}
             <label className="tender-card-comment">
               Коментар користувача
               <textarea
@@ -225,6 +258,9 @@ export function TenderCard({
               Автозбереження. Статус визначається системою окремо.
             </p>
           </section>
+        </TabsContent>
+        <TabsContent value="Звернення">
+          <QuestionsDetails tender={t} />
         </TabsContent>
         <TabsContent value="AI аналіз">
           <section className="tender-card-section">
@@ -270,6 +306,39 @@ export function TenderCard({
                     <FileText size={21} />
                     <div className="tender-document-info">
                       <h3>{doc.name}</h3>
+                      {doc.datePublished &&
+                        t.publishedAt &&
+                        doc.datePublished.slice(0, 10) >
+                          t.publishedAt.slice(0, 10) && (
+                          <small>Додано після публікації тендера</small>
+                        )}
+                      {(t.hierarchy?.documentVersions.filter(
+                        (v) => v.documentId === doc.documentId,
+                      ).length ?? 0) > 1 && (
+                        <strong>Оновлено · кілька версій</strong>
+                      )}
+                      <details>
+                        <summary>Історія версій</summary>
+                        {t.hierarchy?.documentVersions
+                          .filter((v) => v.documentId === doc.documentId)
+                          .map((v) => (
+                            <p key={v.versionId} className="break-all text-xs">
+                              <a
+                                href={v.sourceUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                              >
+                                {v.name} ↗
+                              </a>{" "}
+                              · {v.dateModified ?? v.datePublished ?? "-"} ·{" "}
+                              {v.parseStatus}
+                              <br />
+                              Версія: {v.versionId}
+                              <br />
+                              SHA256: {v.hash ?? "-"}
+                            </p>
+                          ))}
+                      </details>
                       <p>
                         {doc.name.split(".").at(-1)?.toUpperCase()} ·{" "}
                         {doc.sizeBytes !== undefined

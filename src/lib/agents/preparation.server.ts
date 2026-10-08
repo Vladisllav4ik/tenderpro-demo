@@ -6,6 +6,11 @@ import type {
 } from "./source-contracts.ts";
 import { ProzorroSource, normalizeProzorro } from "./prozorro.server.ts";
 import { TenderDocumentService } from "./document-service.server.ts";
+import {
+  parseTenderHierarchy,
+  verifyQuestionChanges,
+} from "../tender-hierarchy.ts";
+import { mergeDocumentVersions } from "./watcher-model.server.ts";
 export class Agent2PreparationService implements SourcePreparationService {
   private source: ProzorroSource;
   private documents: TenderDocumentService;
@@ -16,7 +21,10 @@ export class Agent2PreparationService implements SourcePreparationService {
     this.source = source;
     this.documents = documents;
   }
-  async prepare(raw: Tender): Promise<Agent2Preparation> {
+  async prepare(
+    raw: Tender,
+    previous?: Agent2Preparation,
+  ): Promise<Agent2Preparation> {
     const result: Agent2Preparation = {
       tender: structuredClone(raw),
       rawProzorroData: null,
@@ -35,6 +43,8 @@ export class Agent2PreparationService implements SourcePreparationService {
     };
     try {
       const data = await this.source.fetchTender(raw.id);
+      if (!Array.isArray(data["questions"]))
+        data["questions"] = await this.source.fetchTenderQuestions(data["id"]);
       result.rawProzorroData = data as JsonValue;
       result.prozorroFetched = true;
       result.fetchedAt = new Date().toISOString();
@@ -45,7 +55,35 @@ export class Agent2PreparationService implements SourcePreparationService {
         result.documents = this.documents.register(documents);
         result.flags.documentsFetched = true;
         result.flags.documentsAvailable = documents.length > 0;
-        await this.documents.processAll(result.documents);
+        for (const d of result.documents) {
+          const old = previous?.documents.find(
+            (p) =>
+              p.documentId === d.documentId &&
+              p.url === d.url &&
+              p.dateModified === d.dateModified &&
+              (!p.sourceHash || p.sourceHash === d.sourceHash),
+          );
+          if (old?.downloadStatus === "downloaded")
+            Object.assign(d, old, {
+              versionId: d.versionId,
+              lotId: d.lotId,
+              revision: d.revision,
+            });
+          if (d.downloadStatus === "downloaded" && !d.contentHash)
+            await this.documents.downloadDocument(d);
+        }
+        await this.documents.processAll(
+          result.documents.filter((d) => d.downloadStatus !== "downloaded"),
+        );
+        result.tender.hierarchy = verifyQuestionChanges(
+          parseTenderHierarchy(
+            data,
+            mergeDocumentVersions(
+              previous?.tender.hierarchy?.documentVersions ?? [],
+              result.documents,
+            ),
+          ),
+        );
         result.flags.documentsParsed = result.documents.some(
           (d) => d.parseStatus === "parsed",
         );

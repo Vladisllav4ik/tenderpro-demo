@@ -117,17 +117,23 @@ export function mergeCrashResult(
       )
         return false;
       const source =
-        e.sourceType === "document"
-          ? raw.documents?.find(
-              (d) => d.documentId === e.sourceId && d.parseStatus === "parsed",
-            )?.text
-          : e.sourceType === "prozorro"
-            ? JSON.stringify({
-                items: raw.sourceItems,
-                title: raw.officialTitle,
-                description: raw.description,
-              })
-            : sourceText;
+        e.sourceType === "answer"
+          ? raw.hierarchy?.questions.find(
+              (q) =>
+                q.id === e.sourceId && (!q.changeClaimed || q.changeVerified),
+            )?.answer
+          : e.sourceType === "document"
+            ? raw.documents?.find(
+                (d) =>
+                  d.documentId === e.sourceId && d.parseStatus === "parsed",
+              )?.text
+            : e.sourceType === "prozorro"
+              ? JSON.stringify({
+                  items: raw.sourceItems,
+                  title: raw.officialTitle,
+                  description: raw.description,
+                })
+              : sourceText;
       // Extractive proof, not a plausible paraphrase: both quote and value must occur in the cited source.
       return (
         !!source &&
@@ -148,14 +154,27 @@ export function mergeCrashResult(
       return;
     }
     if (Array.isArray(value)) {
-      const verified = value.filter((v) => grounded(field, v));
+      const verified = value.filter(
+        (v) => grounded(field, v) || evidenceFor(field, v),
+      );
       if (verified.length !== value.length)
         warnings.push(`${field}: непідтверджені значення не застосовано.`);
       if (verified.length) {
         Object.assign(final, { [field]: verified });
         const proof = evidenceFor(field, verified[0]);
         provenance[field] = {
-          source: proof?.sourceType ?? "agent3",
+          source:
+            proof?.sourceType === "answer"
+              ? "agent3"
+              : (proof?.sourceType ?? "agent3"),
+          ...(proof
+            ? {
+                sourceType:
+                  proof.sourceType === "prozorro"
+                    ? "prozorro_tender"
+                    : proof.sourceType,
+              }
+            : {}),
           evidence: verified.join("\n"),
           ...(proof
             ? { sourceId: proof.sourceId, confidence: proof.confidence }
@@ -165,7 +184,23 @@ export function mergeCrashResult(
           const e = evidenceFor(field, v);
           const doc = raw.documents?.find((d) => d.text.includes(v));
           provenance[`${field}:${v}`] = {
-            source: e?.sourceType ?? (doc ? "document" : "import"),
+            source:
+              e?.sourceType === "answer"
+                ? "agent3"
+                : (e?.sourceType ?? (doc ? "document" : "import")),
+            ...(e
+              ? {
+                  sourceType:
+                    e.sourceType === "prozorro"
+                      ? "prozorro_tender"
+                      : e.sourceType,
+                  ...(e.sourceType === "answer"
+                    ? { questionId: e.sourceId }
+                    : e.sourceType === "document"
+                      ? { documentId: e.sourceId }
+                      : {}),
+                }
+              : {}),
             evidence: e?.quote ?? v,
             ...(e
               ? { sourceId: e.sourceId, confidence: e.confidence }
@@ -203,6 +238,37 @@ export function mergeCrashResult(
   }
   // Mock can exercise plumbing, but its generated summaries/decisions are not factual AI conclusions.
   if (agent3Result && a?.provider === "openai") {
+    for (const interpretation of agent3Result.questionAnalysis ?? []) {
+      const q = final.hierarchy?.questions.find(
+        (q) => q.id === interpretation.id,
+      );
+      const citedQuestion = raw.hierarchy?.questions.find(
+        (q) => q.id === interpretation.sourceId,
+      );
+      const cited =
+        interpretation.sourceType === "document"
+          ? raw.documents?.find(
+              (d) =>
+                d.documentId === interpretation.sourceId &&
+                d.parseStatus === "parsed",
+            )?.text
+          : interpretation.sourceType === "answer"
+            ? citedQuestion?.answer
+            : citedQuestion?.question;
+      if (
+        q &&
+        cited &&
+        interpretation.confidence >= 0.5 &&
+        normalize(interpretation.quote).length >= 8 &&
+        normalize(cited).includes(normalize(interpretation.quote))
+      ) {
+        q.classification = interpretation.classification;
+        q.impact =
+          interpretation.sourceType === "question"
+            ? null
+            : interpretation.impact;
+      }
+    }
     const extra = (
       [
         "warranties",

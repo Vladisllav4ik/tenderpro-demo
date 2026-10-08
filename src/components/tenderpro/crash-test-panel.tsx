@@ -5,10 +5,12 @@ import {
   rerunCrashTenders,
   clearCrashTenders,
   rerunPreparedTender,
+  checkTenderChanges,
 } from "@/lib/agents/client";
 import type { CrashRecord } from "@/lib/agents/crash-contracts";
 import type { AgentConfig } from "@/lib/agents/contracts";
 import { useDemo } from "@/lib/demo-store";
+import { aggregateHierarchy } from "@/lib/tender-hierarchy";
 export function CrashTestPanel({
   configs,
   refresh,
@@ -172,6 +174,51 @@ export function CrashTestPanel({
           >
             Повторити Agent 2 → Agent 3
           </button>
+          <button
+            className="my-2 ml-2 rounded border px-3 py-2"
+            disabled={busy || processing}
+            onClick={() =>
+              action(() =>
+                checkTenderChanges({ data: { recordId: r.recordId } }),
+              )
+            }
+          >
+            Перевірити зміни зараз
+          </button>
+          <details open>
+            <summary>Watcher / Lots / Questions / Reanalysis</summary>
+            <p className="text-sm">
+              Last check: {r.watcher?.lastCheckedAt ?? "-"} · Next:{" "}
+              {r.watcher?.nextCheckAt ?? "off / pending"} · Change detected:{" "}
+              {String(r.watcher?.changeDetected ?? false)}
+            </p>
+            <p className="text-sm">
+              Lots: {r.finalMergedTender.hierarchy?.lots.length ?? 0} · Auction
+              dates: {aggregateHierarchy(r.finalMergedTender).auctions.length} ·
+              Differing fields:{" "}
+              {aggregateHierarchy(r.finalMergedTender).differingFields.join(
+                ", ",
+              ) || "-"}
+            </p>
+            <p className="text-sm">
+              Questions: {r.finalMergedTender.hierarchy?.questions.length ?? 0}{" "}
+              · Answered:{" "}
+              {r.finalMergedTender.hierarchy?.questions.filter((q) => q.answer)
+                .length ?? 0}{" "}
+              · Semantic changes: {String(r.watcher?.plan?.semantic ?? false)}
+            </p>
+            <p className="text-sm">
+              Agent 3 started: {String(r.watcher?.agent3Started ?? false)} ·
+              Tokens: {r.watcher?.tokensUsed ?? "-"} · AI calls:{" "}
+              {r.watcher?.aiCalls ?? 0} · Reason:{" "}
+              {r.watcher?.reason.join(", ") || "-"} · Scope:{" "}
+              {r.watcher?.scope.join(", ") || "-"}
+            </p>
+            {r.watcher?.error && <p role="alert">{r.watcher.error}</p>}
+            <pre className="max-h-60 overflow-auto whitespace-pre-wrap break-all text-xs">
+              {JSON.stringify(r.watcher?.fingerprints ?? null, null, 2)}
+            </pre>
+          </details>
           <p className="text-sm">
             Agent 2: Prozorro fetched{" "}
             {r.preparation?.prozorroFetched ? "yes" : "no"} · base fields{" "}
@@ -248,6 +295,8 @@ export function CrashTestPanel({
               ["Raw imported data", r.rawImportedData],
               ["Agent 2 result", r.agent2Result],
               ["Agent 3 result", r.agent3Result],
+              ["Agent 3 delta results / input", r.deltaResults],
+              ["Source changes / revisions", r.sourceSnapshots],
               ["Agent 4 result", r.agent4Result],
               ["Final merged Tender", r.finalMergedTender],
               ["Provenance / source", r.finalMergedTender.provenance],

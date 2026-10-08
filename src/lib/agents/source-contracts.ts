@@ -1,6 +1,11 @@
 import type { Tender } from "../demo-data.ts";
 import type { JsonValue } from "./contracts.ts";
 export type SourceDocument = {
+  lotId?: string | null;
+  versionId?: string;
+  revision?: string | null;
+  contentHash?: string;
+  sourceHash?: string | null;
   sizeBytes?: number;
   documentId: string;
   name: string;
@@ -34,5 +39,8 @@ export type Agent2Preparation = {
   fetchedAt: string | null;
 };
 export interface SourcePreparationService {
-  prepare(tender: Tender): Promise<Agent2Preparation>;
+  prepare(
+    tender: Tender,
+    previous?: Agent2Preparation,
+  ): Promise<Agent2Preparation>;
 }

@@ -1,4 +1,5 @@
 import { unitAbbreviation, subjectWithUnits } from "@/lib/tender-presentation";
+import { LotDetails } from "./tender-source-details";
 import { Palette } from "lucide-react";
 import {
   Popover,
@@ -146,7 +147,11 @@ export function SubmissionCell({
         >
           <span>{p.startLabel}</span>
           <strong>{p.endLabel}</strong>
-          <small>{p.label}</small>
+          <small>
+            {String(worksheetValue(t, "period", 0, now)) === "Кілька строків"
+              ? "Кілька строків"
+              : p.label}
+          </small>
         </button>
       </PopoverTrigger>
       <PopoverContent
@@ -170,6 +175,7 @@ export function SubmissionCell({
             </div>
           ))}
         </dl>
+        {(t.hierarchy?.lots.length ?? 0) > 0 && <LotDetails tender={t} />}
         {!p.precise && (
           <small>Точний час подання не надано в демо-джерелі.</small>
         )}
@@ -202,6 +208,8 @@ export function DetailCell({
         align="start"
       >
         <p className="sheet-preserve-lines">{value}</p>
+        {["auctionPeriod", "deliveryPeriod", "address"].includes(column) &&
+          (t.hierarchy?.lots.length ?? 0) > 0 && <LotDetails tender={t} />}
       </PopoverContent>
     </Popover>
   );

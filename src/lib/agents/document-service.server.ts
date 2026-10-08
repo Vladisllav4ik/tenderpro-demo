@@ -41,6 +41,19 @@ export class TenderDocumentService {
       mimeType: d["format"] ?? null,
       datePublished: d["datePublished"] ?? null,
       dateModified: d["dateModified"] ?? null,
+      sourceHash: typeof d["hash"] === "string" ? d["hash"] : null,
+      lotId: d["documentOf"] === "lot" ? (d["relatedItem"] ?? null) : null,
+      revision: d["revision"] ?? d["version"] ?? null,
+      versionId: createHash("sha256")
+        .update(
+          JSON.stringify([
+            d["id"],
+            d["url"],
+            d["dateModified"],
+            d["revision"] ?? d["version"],
+          ]),
+        )
+        .digest("hex"),
       source: "prozorro",
       downloadStatus: "pending",
       parseStatus: "pending",
@@ -49,19 +62,34 @@ export class TenderDocumentService {
     }));
   }
   async downloadDocument(doc: SourceDocument): Promise<Buffer> {
+    const previousKey = doc.cacheKey;
     const cacheKey = createHash("sha256")
-      .update(`${doc.documentId}:${doc.url}:${doc.dateModified}`)
+      .update(
+        `${doc.documentId}:${doc.url}:${doc.dateModified}${doc.sourceHash ? `:${doc.sourceHash}` : ""}`,
+      )
       .digest("hex");
-    doc.cacheKey = cacheKey;
     const path = join(this.directory, cacheKey + ".bin");
-    try {
-      const bytes = await readFile(path);
-      doc.sizeBytes = bytes.length;
-      doc.downloadStatus = "downloaded";
-      return bytes;
-    } catch (e) {
-      if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
-    }
+    for (const candidate of [
+      ...new Set([cacheKey, ...(previousKey ? [previousKey] : [])]),
+    ])
+      try {
+        const bytes = await readFile(join(this.directory, candidate + ".bin"));
+        const checksum = doc.sourceHash?.match(/^(md5|sha256):([a-f\d]+)$/i);
+        if (
+          checksum &&
+          createHash(checksum[1]!).update(bytes).digest("hex") !==
+            checksum[2]!.toLowerCase()
+        )
+          continue;
+        doc.cacheKey = candidate;
+        doc.contentHash = createHash("sha256").update(bytes).digest("hex");
+        doc.sizeBytes = bytes.length;
+        doc.downloadStatus = "downloaded";
+        return bytes;
+      } catch (e) {
+        if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
+      }
+    doc.cacheKey = cacheKey;
     let url = safeURL(doc.url);
     let bytes: Buffer | undefined;
     for (let i = 0; i < 5; i++) {
@@ -97,6 +125,7 @@ export class TenderDocumentService {
     await writeFile(path, bytes, { mode: 0o600 });
     doc.downloadStatus = "downloaded";
     doc.sizeBytes = bytes.length;
+    doc.contentHash = createHash("sha256").update(bytes).digest("hex");
     return bytes;
   }
   async extractText(

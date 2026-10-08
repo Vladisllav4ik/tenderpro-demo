@@ -69,6 +69,10 @@ export const analyzerInputSchema = z
             sourceUrl: nullableText,
             parseStatus: z.string(),
             downloadStatus: z.string(),
+            datePublished: nullableText.optional(),
+            dateModified: nullableText.optional(),
+            lotId: nullableText.optional(),
+            versionId: nullableText.optional(),
           })
           .strict(),
       )
@@ -107,7 +111,7 @@ export const analyzerResultSchema = z
           .object({
             field: z.string().max(100),
             value: z.string().max(4000),
-            sourceType: z.enum(["import", "prozorro", "document"]),
+            sourceType: z.enum(["import", "prozorro", "document", "answer"]),
             sourceId: z.string().max(300),
             quote: z.string().max(4000),
             confidence: z.number().min(0).max(1),
@@ -115,6 +119,32 @@ export const analyzerResultSchema = z
           .strict(),
       )
       .max(200)
+      .optional(),
+    questionAnalysis: z
+      .array(
+        z
+          .object({
+            id: z.string(),
+            classification: z
+              .enum([
+                "technical",
+                "qualification",
+                "legal",
+                "delivery",
+                "equivalent",
+                "deadline",
+                "other",
+              ])
+              .nullable(),
+            impact: z.enum(["low", "medium", "high"]).nullable(),
+            sourceType: z.enum(["question", "answer", "document"]),
+            sourceId: z.string(),
+            quote: z.string().max(4000),
+            confidence: z.number().min(0).max(1),
+          })
+          .strict(),
+      )
+      .max(100)
       .optional(),
   })
   .strict();
@@ -334,12 +364,42 @@ export const analyzerOutputJSONSchema = strictObject({
   equivalentConditions: strings,
   configuration: strings,
   technicalCharacteristics: strings,
+  questionAnalysis: {
+    type: "array",
+    items: strictObject({
+      id: string,
+      classification: {
+        type: ["string", "null"],
+        enum: [
+          "technical",
+          "qualification",
+          "legal",
+          "delivery",
+          "equivalent",
+          "deadline",
+          "other",
+          null,
+        ],
+      },
+      impact: {
+        type: ["string", "null"],
+        enum: ["low", "medium", "high", null],
+      },
+      sourceType: { type: "string", enum: ["question", "answer", "document"] },
+      sourceId: string,
+      quote: string,
+      confidence: { type: "number", minimum: 0, maximum: 1 },
+    }),
+  },
   evidence: {
     type: "array",
     items: strictObject({
       field: string,
       value: string,
-      sourceType: { type: "string", enum: ["import", "prozorro", "document"] },
+      sourceType: {
+        type: "string",
+        enum: ["import", "prozorro", "document", "answer"],
+      },
       sourceId: string,
       quote: string,
       confidence: { type: "number", minimum: 0, maximum: 1 },

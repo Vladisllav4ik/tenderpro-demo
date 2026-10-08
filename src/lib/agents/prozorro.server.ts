@@ -2,6 +2,10 @@ import type { Tender } from "../demo-data.ts";
 import type { JsonValue } from "./contracts.ts";
 import { sanitizeSnapshot } from "./snapshots.server.ts";
 import { presentationTender } from "../tender-presentation.ts";
+import {
+  parseTenderHierarchy,
+  aggregateHierarchy,
+} from "../tender-hierarchy.ts";
 export class ProzorroSource {
   private request: typeof fetch;
   constructor(request: typeof fetch = fetch) {
@@ -39,6 +43,16 @@ export class ProzorroSource {
       )
     ).data as Record<string, any>[];
   }
+  async fetchTenderQuestions(internalId: string) {
+    if (!/^[a-f\d]{32}$/i.test(internalId))
+      throw new Error("Некоректний source ID.");
+    const body = await this.json(
+      `https://public-api.prozorro.gov.ua/api/2.5/tenders/${internalId}/questions`,
+    );
+    if (!Array.isArray(body.data))
+      throw new Error("Некоректний реєстр звернень.");
+    return body.data as Record<string, any>[];
+  }
 }
 const numeric = (v: any) =>
   typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : undefined;
@@ -57,6 +71,7 @@ export function normalizeProzorro(
     ...structuredClone(raw),
     provenance: { ...raw.provenance },
   };
+  t.hierarchy = parseTenderHierarchy(data);
   const locked = new Set(raw.sourceFields ?? []);
   const put = (field: string, value: any) => {
     if (
@@ -69,6 +84,7 @@ export function normalizeProzorro(
     Object.assign(t, { [field]: value });
     t.provenance![field] = {
       source: "prozorro",
+      sourceType: "prozorro_tender",
       sourceId: data["id"],
       evidence: `Prozorro ${field}`,
     };
@@ -124,6 +140,27 @@ export function normalizeProzorro(
   put("prozorroStatus", data["status"]);
   put("sourceItems", items as JsonValue[]);
   put("sourceLots", (data["lots"] ?? []) as JsonValue[]);
+  const aggregate = aggregateHierarchy(t);
+  if (!data["auctionPeriod"]?.startDate && aggregate.auction) {
+    put("auctionPeriod", aggregate.auction);
+    if (!locked.has("auctionPeriod"))
+      t.provenance!["auctionPeriod"] = {
+        source: "prozorro",
+        sourceType: "prozorro_lot",
+        sourceId: data["id"],
+        lotId: aggregate.auctions[0]!.lotId,
+        evidence: "lots[].auctionPeriod",
+      };
+  }
+  if (
+    numeric(data["value"]?.amount) === undefined &&
+    aggregate.lotSum !== null
+  ) {
+    put("budget", aggregate.lotSum);
+    put("totalAmount", aggregate.lotSum);
+    put("expectedValue", aggregate.lotSum);
+    put("currency", aggregate.lotCurrency);
+  }
   if (items.length) {
     const units = items.map((i) => i["unit"]?.name ?? i["unit"]?.code);
     const same = units.every((u) => u && u === units[0]);
@@ -181,6 +218,29 @@ export function normalizeProzorro(
     );
   }
   // Source status is procedure state, not evidence of our participation or victory.
+  if (aggregate.quantity !== null) {
+    put("quantity", aggregate.quantity);
+    put("unit", aggregate.unit);
+  }
+  if (aggregate.delivery) put("deliveryPeriod", aggregate.delivery);
+  if (aggregate.address) put("address", aggregate.address);
+  for (const key of [
+    "quantity",
+    "unit",
+    "unitPrice",
+    "objects",
+    "subject",
+    "deliveryPeriod",
+    "address",
+  ])
+    if (!locked.has(key) && t.provenance?.[key]?.source === "prozorro")
+      t.provenance[key]!.sourceType =
+        ["deliveryPeriod", "address"].includes(key) &&
+        t.hierarchy.lots.some((l) =>
+          key === "address" ? l.address : l.delivery,
+        )
+          ? "prozorro_lot"
+          : "prozorro_item";
   const state =
     data["status"] === "cancelled"
       ? "cancelled"

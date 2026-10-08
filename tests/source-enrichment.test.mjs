@@ -127,7 +127,10 @@ test("Excel values stay exact; source supplies timestamps and never divides budg
   );
 });
 test("No source documents is distinct from failed document listing", async () => {
-  const api = { fetchTender: async () => source() };
+  const api = {
+    fetchTender: async () => source(),
+    fetchTenderQuestions: async () => [],
+  };
   const empty = await new Agent2PreparationService(api, {
     fetchTenderDocuments: async () => [],
     register: () => [],

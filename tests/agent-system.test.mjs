@@ -258,7 +258,10 @@ test("real Analyzer adapter sends configured Responses request and audits valida
         calls++;
         assert.equal(url, "https://api.openai.com/v1/responses");
         const body = JSON.parse(init.body);
-        assert.equal(body.instructions, aiConfig("detail").systemPrompt);
+        assert.ok(
+          body.instructions.startsWith(aiConfig("detail").systemPrompt),
+        );
+        assert.match(body.instructions, /participant claims/);
         assert.equal(body.store, false);
         assert.equal(body.text.format.name, "tender_analyzer");
         assert.equal(

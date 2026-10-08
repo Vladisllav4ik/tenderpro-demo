@@ -6,6 +6,14 @@ import type {
   PipelineRecord,
 } from "./system-contracts.ts";
 export type CrashRecord = {
+  sourceSnapshots?: { at: string; data: import("./contracts.ts").JsonValue }[];
+  watcher?: import("./watcher-model.server.ts").WatcherState;
+  deltaResults?: {
+    at: string;
+    input: import("./contracts.ts").JsonValue;
+    result: import("./delta-analysis.server.ts").DeltaResult;
+    tokens: number | null;
+  }[];
   preparation?: import("./source-contracts.ts").Agent2Preparation;
   agent3Debug?: {
     started: boolean;

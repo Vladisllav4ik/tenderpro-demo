@@ -37,6 +37,11 @@ import type {
   LifecycleInput,
   PipelineSettings,
 } from "./system-contracts";
+export const checkTenderChanges = createServerFn({ method: "POST" })
+  .validator((input: { recordId?: string }) => input)
+  .handler(async ({ data }) =>
+    (await import("./crash-execution.server")).checkChangesNow(data),
+  );
 export const testAgentSystem = createServerFn({ method: "POST" })
   .validator((input: AgentTestRequest) => input)
   .handler(async ({ data }) =>
