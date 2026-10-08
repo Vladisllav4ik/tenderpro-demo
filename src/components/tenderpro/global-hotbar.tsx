@@ -1,3 +1,4 @@
+import { accountInitials } from "@/lib/account-model";
 import { Link, useRouterState } from "@tanstack/react-router";
 import {
   Box,
@@ -56,7 +57,9 @@ export function GlobalHotbar() {
             className="sheet-tool global-account"
             aria-label="Меню акаунта"
           >
-            <span className="global-avatar">{account.name.slice(0, 1)}</span>
+            <span className="global-avatar">
+              {accountInitials(account.name)}
+            </span>
             <span className="global-account-name">{account.name}</span>
             <small>{account.role}</small>
             <ChevronDown />
@@ -65,6 +68,7 @@ export function GlobalHotbar() {
         <PopoverContent align="end" className="sheet-menu global-account-menu">
           <p className="sheet-menu-heading">
             {account.name} · {account.role}
+            <span className="global-account-email">{account.email}</span>
           </p>
           <Link className="sheet-nav-link" to="/profile">
             <User />

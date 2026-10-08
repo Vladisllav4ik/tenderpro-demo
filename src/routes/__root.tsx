@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   Outlet,
   Link,
+  redirect,
   createRootRouteWithContext,
   useRouter,
   HeadContent,
@@ -16,7 +17,12 @@ import { reportLovableError } from "../lib/lovable-error-reporting";
 import { AppShell } from "@/components/tenderpro/app-shell";
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   {
-    beforeLoad: async () => ({ account: await getAccount() }),
+    beforeLoad: async ({ location }) => {
+      const account = await getAccount();
+      if (!account && location.pathname !== "/login")
+        throw redirect({ to: "/login" });
+      return { account };
+    },
     head: () => ({
       meta: [
         { charSet: "utf-8" },

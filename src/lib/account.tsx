@@ -1,11 +1,7 @@
 import { LocalPreferencesRepository } from "./preferences-repository";
 import { createContext, useContext, type ReactNode } from "react";
-export type Account = { id: string; name: string; role: "USER" | "ADMIN" };
-export const demoAccounts: Account[] = [
-  { id: "user", name: "Директор", role: "USER" },
-  { id: "user2", name: "Другий користувач", role: "USER" },
-  { id: "admin", name: "Адміністратор", role: "ADMIN" },
-];
+import type { Account } from "./account-model";
+export type { Account } from "./account-model";
 const Context = createContext<Account | null>(null);
 export function AccountProvider({
   account,

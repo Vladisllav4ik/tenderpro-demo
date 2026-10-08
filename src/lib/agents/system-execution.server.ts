@@ -50,7 +50,7 @@ const orchestrator = () =>
 export async function runSystemTest(
   raw: AgentTestRequest,
 ): Promise<SystemTestReply> {
-  const account = requireAccount(true);
+  const account = await requireAccount(true);
   await loadConfigurations();
   if (busy.has(account.id))
     return {
@@ -120,7 +120,7 @@ export async function runSystemTest(
   }
 }
 export async function savePipelineSettings(input: PipelineSettings) {
-  requireAccount(true);
+  await requireAccount(true);
   const parsed = pipelineSettingsSchema.safeParse(input);
   if (!parsed.success)
     throw new Error(
@@ -133,7 +133,7 @@ export async function savePipelineSettings(input: PipelineSettings) {
   }
 }
 export async function scheduleStatusRecheck(raw: unknown) {
-  const account = requireAccount();
+  const account = await requireAccount();
   await loadConfigurations();
   const parsed = statusInputSchema.safeParse(raw);
   if (!parsed.success)
@@ -161,7 +161,7 @@ export async function scheduleStatusRecheck(raw: unknown) {
 export async function processOneDueRecheck(): Promise<
   SystemTestReply | { ok: true; empty: true }
 > {
-  const account = requireAccount(true);
+  const account = await requireAccount(true);
   await loadConfigurations();
   if (busy.has(account.id))
     return { ok: false, error: "Дочекайтеся поточного тесту." };

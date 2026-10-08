@@ -23,7 +23,7 @@ import {
   persistConfiguration,
 } from "./configuration-storage.server";
 export async function adminState() {
-  requireAccount(true);
+  await requireAccount(true);
   await (await import("./crash-execution.server")).initializeCrashStorage();
   await loadConfigurations();
   let persistentLogs: import("./contracts").AgentLog[] = [];
@@ -55,7 +55,7 @@ export async function adminState() {
 export async function runSingleFilterTest(
   input: unknown,
 ): Promise<FilterTestReply> {
-  const account = requireAccount(true);
+  const account = await requireAccount(true);
   await loadConfigurations();
   const config = agentRepository.list().find((c) => c.id === "filter")!;
   const error = (code: string, message: string): FilterTestReply => ({
@@ -157,11 +157,11 @@ export async function runSingleFilterTest(
   }
 }
 export async function saveConfig(config: AgentConfig) {
-  requireAccount(true);
+  await requireAccount(true);
   return persistConfiguration(config);
 }
 export async function runPipeline(records: Tender[]) {
-  requireAccount();
+  await requireAccount();
   throw new Error(
     "Для Excel використовуйте автоматичний crash-test pipeline; legacy mock-обробку вимкнено.",
   );

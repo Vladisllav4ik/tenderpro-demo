@@ -6,7 +6,7 @@ export async function documentPreview(data: {
   tenderId: string;
   documentId: string;
 }) {
-  const account = requireAccount();
+  const account = await requireAccount();
   if (
     !data ||
     typeof data.tenderId !== "string" ||

@@ -16,6 +16,7 @@ export default defineConfig({
           "*.{crt,pem}",
           "**/.git/**",
           "**/.tenderpro-local/**",
+          "**/.codex/secrets/**",
         ],
       },
     },

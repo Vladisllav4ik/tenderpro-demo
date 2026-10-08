@@ -3165,3 +3165,91 @@ body {
 .admin-panel .admin-form-grid + h2 {
   margin-top: 32px;
 }
+.login-workspace {
+  min-height: 100dvh;
+  background: #f7f9fc;
+  font-family: "Segoe UI", Arial, sans-serif;
+  color: #172033;
+}
+.login-center {
+  min-height: calc(100dvh - 64px);
+  display: grid;
+  place-items: center;
+  padding: 32px 20px;
+}
+.login-card {
+  width: 100%;
+  max-width: 420px;
+  background: white;
+  padding: 34px;
+  border: 1px solid #dde4ed;
+  border-radius: 10px;
+  box-shadow: 0 8px 26px #17203306;
+}
+.login-icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid #dde4ed;
+  border-radius: 8px;
+  margin-bottom: 22px;
+  color: #365575;
+}
+.login-card h1 {
+  font-size: 24px;
+  font-weight: 650;
+  letter-spacing: -0.6px;
+}
+.login-card > p {
+  font-size: 14px;
+  color: #7b8798;
+  margin: 8px 0 28px;
+}
+.login-card form {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+.login-card label {
+  font-size: 13px;
+  font-weight: 500;
+  color: #52637a;
+}
+.login-card input {
+  width: 100%;
+  border: 1px solid #d4dde9;
+  border-radius: 6px;
+  background: #fbfcfe;
+  padding: 11px 13px;
+  font-size: 14px;
+  margin-bottom: 12px;
+}
+.login-card input:focus {
+  outline: 2px solid #779ac2;
+  outline-offset: 1px;
+}
+.login-card input[aria-invalid="true"] {
+  border-color: #c98888;
+}
+.login-card button {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 12px;
+}
+.login-error {
+  color: #b65353;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.global-account-email {
+  display: block;
+  text-transform: none;
+  letter-spacing: 0;
+  margin-top: 6px;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}

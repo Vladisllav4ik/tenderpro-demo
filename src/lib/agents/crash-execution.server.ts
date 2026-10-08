@@ -21,6 +21,7 @@ import { sanitizeSnapshot } from "./snapshots.server";
 import { runningAgentAccounts } from "./execution-lock.server";
 import { Agent2PreparationService } from "./preparation.server";
 import { presentationTender } from "../tender-presentation";
+import { crashAccountView } from "../crash-account-view";
 let initializing: Promise<void> | undefined;
 export function initializeCrashStorage() {
   if (!initializing)
@@ -70,21 +71,26 @@ function checkModes() {
   return configs;
 }
 export async function importedState() {
-  const account = requireAccount();
+  const account = await requireAccount();
   await initializeCrashStorage();
   const records = await crashRepository.list(
     account.role === "ADMIN" ? undefined : account.id,
   );
-  return records.map((r) => ({
-    ...r,
-    finalMergedTender: presentationTender(
-      r.finalMergedTender,
-      r.preparation?.rawProzorroData as Record<string, any> | null,
+  return records.map((r) =>
+    crashAccountView(
+      {
+        ...r,
+        finalMergedTender: presentationTender(
+          r.finalMergedTender,
+          r.preparation?.rawProzorroData as Record<string, any> | null,
+        ),
+      },
+      account.role,
     ),
-  }));
+  );
 }
 export async function importAndRunCrash(raw: { tenders: Tender[] }) {
-  const account = requireAccount();
+  const account = await requireAccount();
   await initializeCrashStorage();
   if (runningAgentAccounts.size)
     throw new Error(
@@ -131,16 +137,18 @@ export async function importAndRunCrash(raw: { tenders: Tender[] }) {
     );
     return {
       imported: added.length,
-      records: await crashRepository.list(
-        account.role === "ADMIN" ? undefined : account.id,
-      ),
+      records: (
+        await crashRepository.list(
+          account.role === "ADMIN" ? undefined : account.id,
+        )
+      ).map((r) => crashAccountView(r, account.role)),
     };
   } finally {
     runningAgentAccounts.delete(account.id);
   }
 }
 export async function rerunImportedCrash() {
-  const account = requireAccount(true);
+  const account = await requireAccount(true);
   await initializeCrashStorage();
   if (runningAgentAccounts.size)
     throw new Error("Дочекайтеся поточного pipeline.");
@@ -164,7 +172,7 @@ export async function rerunImportedCrash() {
   }
 }
 export async function rerunOnePrepared(raw: { recordId: string }) {
-  const account = requireAccount(true);
+  const account = await requireAccount(true);
   await initializeCrashStorage();
   if (runningAgentAccounts.size)
     throw new Error("Дочекайтеся поточного pipeline.");
@@ -188,7 +196,7 @@ export async function rerunOnePrepared(raw: { recordId: string }) {
   }
 }
 export async function clearImportedCrash() {
-  requireAccount(true);
+  await requireAccount(true);
   await initializeCrashStorage();
   if (runningAgentAccounts.size)
     throw new Error("Дочекайтеся pipeline перед очищенням.");
@@ -207,7 +215,7 @@ export async function clearImportedCrash() {
   }
 }
 export async function updateImportedComment(raw: unknown) {
-  const account = requireAccount();
+  const account = await requireAccount();
   await initializeCrashStorage();
   const parsed = z
     .object({

@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useAccount } from "@/lib/account";
 import { logout } from "@/lib/account-session";
@@ -5,11 +6,18 @@ import { useWorkspaceState } from "@/lib/workspace-state";
 export function AccountSettings() {
   const account = useAccount()!;
 
-  const [name, setName] = useWorkspaceState(
+  const [name, setName, nameReady] = useWorkspaceState(
     "profileName",
     account.name,
     (v) => typeof v === "string",
   );
+  useEffect(() => {
+    if (
+      nameReady &&
+      ["Директор", "Другий користувач", "Адміністратор"].includes(name)
+    )
+      setName(account.name);
+  }, [nameReady, name, account.name, setName]);
   const [zoom, setZoom] = useWorkspaceState("zoom", 100, (v) =>
     [100, 125, 150, 175, 200].includes(v as number),
   );
@@ -54,10 +62,11 @@ export function AccountSettings() {
               />
             </label>
             <p>
-              Акаунт: {account.id} · {account.role}
+              {account.email} · {account.role}
             </p>
             <p className="text-sm text-muted-foreground">
-              Демо-сесія. Персональні дані зберігаються у цьому браузері.
+              Персональні налаштування зберігаються у цьому браузері для вашого
+              акаунта.
             </p>
             <button
               className="rounded border px-4 py-2"

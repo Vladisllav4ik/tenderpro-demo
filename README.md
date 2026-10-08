@@ -1,3 +1,5 @@
+Локальний email/password login, users, hashes та сесії: [LOCAL_AUTH.md](LOCAL_AUTH.md).
+
 Поточний ADMIN UI, global hotbar та agent screens: [ADMIN_UI.md](ADMIN_UI.md).
 
 Поточні правки таблиці, ПДВ, Zakupivli links і document preview: [TABLE_CARD_UPDATES.md](TABLE_CARD_UPDATES.md).

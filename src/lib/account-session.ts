@@ -3,7 +3,7 @@ export const getAccount = createServerFn({ method: "GET" }).handler(async () =>
   (await import("./session.server")).currentAccount(),
 );
 export const login = createServerFn({ method: "POST" })
-  .validator((id: string) => id)
+  .validator((data: { email: string; password: string }) => data)
   .handler(async ({ data }) => (await import("./session.server")).signIn(data));
 export const logout = createServerFn({ method: "POST" }).handler(async () =>
   (await import("./session.server")).signOut(),

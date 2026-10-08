@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import {
   getCookie,
   setCookie,
@@ -6,17 +5,22 @@ import {
   setResponseStatus,
   setResponseHeader,
 } from "@tanstack/react-start/server";
-import { demoAccounts, type Account } from "./account";
-// Demo-only opaque sessions. Replace this adapter with production auth before real accounts.
-const sessions = new Map<string, { account: Account; expires: number }>();
-export function currentAccount() {
+import {
+  LocalAccountRepository,
+  MemorySessionRepository,
+} from "./auth-repositories.server";
+import { AuthService, SESSION_SECONDS } from "./auth-service.server";
+const COOKIE = "tenderpro_session";
+const auth = new AuthService(
+  new LocalAccountRepository(),
+  new MemorySessionRepository(),
+);
+export async function currentAccount() {
   setResponseHeader("Cache-Control", "private, no-store");
-  const token = getCookie("tenderpro_demo_session");
-  const session = token ? sessions.get(token) : undefined;
-  return session && session.expires > Date.now() ? session.account : null;
+  return auth.currentAccount(getCookie(COOKIE));
 }
-export function requireAccount(admin = false) {
-  const account = currentAccount();
+export async function requireAccount(admin = false) {
+  const account = await currentAccount();
   if (!account) {
     setResponseStatus(401);
     throw new Error("Потрібен вхід");
@@ -27,27 +31,24 @@ export function requireAccount(admin = false) {
   }
   return account;
 }
-export function signIn(id: string) {
-  const account = demoAccounts.find((a) => a.id === id);
-  if (!account) throw new Error("Невідомий демо-акаунт");
-  const old = getCookie("tenderpro_demo_session");
-  if (old) sessions.delete(old);
-  const token = randomUUID();
-  for (const [key, value] of sessions)
-    if (value.expires < Date.now()) sessions.delete(key);
-  if (sessions.size >= 1000) sessions.delete(sessions.keys().next().value!);
-  sessions.set(token, { account, expires: Date.now() + 86400000 });
-  setCookie("tenderpro_demo_session", token, {
+export async function signIn(input: unknown) {
+  setResponseHeader("Cache-Control", "private, no-store");
+  const result = await auth.signIn(input, getCookie(COOKIE)).catch(() => {
+    setResponseStatus(401);
+    throw new Error("Невірний email або пароль");
+  });
+  const { token, account } = result;
+  setCookie(COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
     path: "/",
-    maxAge: 86400,
+    maxAge: SESSION_SECONDS,
     secure: process.env["NODE_ENV"] === "production",
   });
   return account;
 }
-export function signOut() {
-  const token = getCookie("tenderpro_demo_session");
-  if (token) sessions.delete(token);
-  deleteCookie("tenderpro_demo_session", { path: "/" });
+export async function signOut() {
+  await auth.signOut(getCookie(COOKIE));
+  deleteCookie(COOKIE, { path: "/" });
+  setResponseHeader("Cache-Control", "private, no-store");
 }
