@@ -2,9 +2,11 @@
 
 PHP 8.2+ (PDO MySQL, cURL, JSON, OpenSSL), MySQL 8 / MariaDB 10.6+, CLI PHP and HTTPS. No Composer framework required. Only `server/api/` is the public document root. `src`, migrations, configuration and logs must be outside it. Do not upload the project `.env`, `.tenderpro-local`, `_temp`, or desktop data.
 
+ADM stage 3.1: [hosting-specific upload/Cron instructions](deploy/ADM_DEPLOY.md). Build the secret-free package with `pwsh -File server/deploy/build-adm-package.ps1` (PowerShell 7). The ZIP puts only `index.php` and `.htaccess` in `www`; backend/configuration/logs/Cron are outside it. Hosting parameters supplied: PHP 8.3, Percona 8.4, Apache, HTTPS, 15-minute Cron. CLI executable, DB host/user and AllowOverride still require on-host verification; no automatic deployment is performed.
+
 ## Private configuration and isolated deployment
 
-1. Confirm ADM PHP version, CLI executable, enabled extensions, Cron support, MySQL version, separate DB/user, HTTPS certificate, memory/time/request limits, storage quota and writable private log directory. These hosting details are not available in this workspace; ADM has **not** been deployed or verified.
+1. ADM parameters supplied for stage 3.1: PHP 8.3, Percona Server 8.4, Apache, HTTPS and 15-minute Cron. Confirm CLI executable/extensions, actual DB host/user, AllowOverride, memory/time/request limits, storage quota and private log permissions on the host. ADM has **not** been deployed or tested remotely; use the dedicated package instructions above.
 2. Create a new isolated database and restricted DB user. Copy `config.example.php` to a private directory outside the public root, replace its credentials there, keep `allow_local_http=false`. Set `TENDERPRO_CONFIG` to its absolute path for CLI and PHP-FPM/Apache. Never commit credentials.
 3. `php server/src/database/manage.php migrate`. Migration uses MySQL DDL; back up first, do not run against another application's database. The runtime DB account needs only SELECT/INSERT/UPDATE/DELETE and advisory lock access after migration.
 4. `php server/src/database/manage.php profile business-test '43262100-8' '34223300-9' '4326*'`. Filters live in `cpv_filters`; disable by `enabled=0`. Prefixes are validated digits, never SQL LIKE. No permanent default rules are seeded. The optional subscription XLSX was not found in the workspace or Downloads root. Test codes can be supplied manually.

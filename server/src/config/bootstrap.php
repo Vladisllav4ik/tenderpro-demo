@@ -4,7 +4,7 @@ namespace TenderPro;
 function config(): array {
     static $config;
     if ($config === null) {
-        $path = getenv('TENDERPRO_CONFIG');
+        $path = defined('TENDERPRO_CONFIG_PATH') ? constant('TENDERPRO_CONFIG_PATH') : getenv('TENDERPRO_CONFIG');
         if (!$path || !is_file($path)) throw new \RuntimeException('Private server configuration missing');
         $config = require $path;
     }
@@ -14,8 +14,12 @@ function db(): \PDO {
     static $db;
     $c = config();
     if($db===null){
-        $db=new \PDO($c['dsn'], $c['user'], $c['password'], [\PDO::ATTR_ERRMODE=>\PDO::ERRMODE_EXCEPTION, \PDO::ATTR_EMULATE_PREPARES=>false]);
+        $db=new \PDO($c['dsn'], $c['user'], $c['password'], [\PDO::ATTR_ERRMODE=>\PDO::ERRMODE_EXCEPTION, \PDO::ATTR_EMULATE_PREPARES=>false, \PDO::ATTR_TIMEOUT=>5]);
         $db->exec("SET time_zone='+00:00'");
+        if(defined('TENDERPRO_EXPECTED_DATABASE') && $db->query('SELECT DATABASE()')->fetchColumn()!==constant('TENDERPRO_EXPECTED_DATABASE')){
+            $db=null;
+            throw new \RuntimeException('Configured database does not match deployment target');
+        }
     }
     return $db;
 }

@@ -1,0 +1,14 @@
+Options -Indexes -MultiViews
+DirectoryIndex index.php
+RewriteEngine On
+
+# Fixed host: never build redirects from the untrusted Host header.
+RewriteCond %{HTTPS} !=on
+RewriteRule ^ https://api-tenderpro.solomons.com.ua%{REQUEST_URI} [R=308,L,NE]
+
+# Preserve Bearer auth across Apache's internal rewrite/FastCGI environment.
+RewriteRule ^ - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+RewriteRule (^|/)\. - [F,END]
+RewriteRule ^(?:private|server|src|cron|migrations|logs)(?:/|$) - [F,END,NC]
+RewriteRule ^index\.php$ - [END]
+RewriteRule ^ index.php [QSA,END]

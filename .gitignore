@@ -30,3 +30,8 @@ src-tauri/gen/
 *.db-shm
 sync-config.json
 server/config.private.php
+server/deploy/adm/private/config.php
+server/deploy/adm/private/php-cli.path
+server/deploy/adm/private/logs/*.log
+server/deploy/adm/private/state/*.done
+server/deploy/adm/private/state/*.lock
