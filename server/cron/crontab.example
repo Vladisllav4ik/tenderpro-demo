@@ -1,0 +1,3 @@
+# DO NOT activate before confirming ADM CLI PHP, runtime and rate limits.
+# Use an isolated OS/database account; private configuration outside document root.
+*/15 * * * * TENDERPRO_CONFIG=/home/ACCOUNT/private/tenderpro.php /usr/bin/php /home/ACCOUNT/tenderpro/server/cron/collect.php --profile=1 --mode=forward --limit=100 --seconds=60 >> /home/ACCOUNT/private/collector.log 2>&1

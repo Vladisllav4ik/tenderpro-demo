@@ -40,12 +40,18 @@ impl Database {
         let version: i32 = connection
             .pragma_query_value(None, "user_version", |r| r.get(0))
             .map_err(|e| e.to_string())?;
-        if version > 1 {
+        if version > 2 {
             return Err("База створена новішою версією програми; downgrade заборонено.".into());
         }
         if version == 0 {
             let tx = connection.transaction().map_err(|e| e.to_string())?;
             tx.execute_batch(include_str!("../migrations/001_foundation.sql"))
+                .map_err(|e| e.to_string())?;
+            tx.commit().map_err(|e| e.to_string())?;
+        }
+        if version < 2 {
+            let tx = connection.transaction().map_err(|e| e.to_string())?;
+            tx.execute_batch(include_str!("../migrations/002_server_sync.sql"))
                 .map_err(|e| e.to_string())?;
             tx.commit().map_err(|e| e.to_string())?;
         }
@@ -166,7 +172,7 @@ impl Database {
             preferences,
             diagnostics: Diagnostics {
                 database_path: self.path.display().to_string(),
-                schema_version: 1,
+                schema_version: 2,
                 integrity: "ok".into(),
             },
         })
@@ -320,7 +326,7 @@ mod tests {
         {
             let db = Database::open(&path).unwrap();
             db.connection
-                .pragma_update(None, "user_version", 2)
+                .pragma_update(None, "user_version", 3)
                 .unwrap();
         }
         assert!(Database::open(&path).is_err());

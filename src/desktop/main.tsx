@@ -24,6 +24,7 @@ import { getAgentAdmin } from "./features";
 import { desktopAccount } from "./account";
 import { desktopRepository, hydratePreferences } from "./repository";
 import { initializeDesktopStore } from "./store";
+import { SyncControl } from "./sync-control";
 const root = createRootRoute({
   component: () => (
     <AccountProvider account={desktopAccount}>
@@ -43,7 +44,12 @@ const index = createRoute({
 const table = createRoute({
   getParentRoute: () => root,
   path: "tenders",
-  component: Tenders,
+  component: () => (
+    <>
+      <SyncControl />
+      <Tenders />
+    </>
+  ),
 });
 const card = createRoute({
   getParentRoute: () => root,

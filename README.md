@@ -47,4 +47,6 @@ AI, watcher, Excel → AI pipeline, document backend, реальна автор�
 
 ## Тимчасові файли
 
+Етап №3: [ADM backend / Agent 1](server/README.md), [результати перевірок](docs/testing/ADM_AGENT1_RESULTS.md). Backend ізольований від вебверсії. Desktop отримує офіційні дані через native Sync API; агенти 2–4 не підключені.
+
 `_temp/screenshots`, `_temp/logs`, `_temp/reports`, `_temp/other` — видалювані QA-матеріали, ignored Git. Програма й production build від них не залежать. Постійні fixtures залишаються у `tests/fixtures` та `src-tauri/fixtures`.

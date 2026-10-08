@@ -28,3 +28,5 @@ src-tauri/gen/
 *.db
 *.db-wal
 *.db-shm
+sync-config.json
+server/config.private.php
