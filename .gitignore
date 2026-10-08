@@ -18,3 +18,13 @@ Thumbs.db
 CODEX_COMPLETED.md
 .test-output
 .tenderpro-local
+_temp/
+dist-desktop/
+src-tauri/target/
+src-tauri/gen/
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.db
+*.db-wal
+*.db-shm

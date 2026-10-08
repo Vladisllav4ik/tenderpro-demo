@@ -1,110 +1,50 @@
-Локальний email/password login, users, hashes та сесії: [LOCAL_AUTH.md](LOCAL_AUTH.md).
+# Tender PRO
 
-Поточний ADMIN UI, global hotbar та agent screens: [ADMIN_UI.md](ADMIN_UI.md).
+Вебверсія: React + TanStack Start + Node/Nitro. Desktop Foundation: Tauri 2 + статична React SPA + SQLite. Обидві збірки використовують спільні компоненти й стилі.
 
-Поточні правки таблиці, ПДВ, Zakupivli links і document preview: [TABLE_CARD_UPDATES.md](TABLE_CARD_UPDATES.md).
+## Вебверсія
 
-Поточна інтеграція Prozorro/document pipeline та результати реального crash-test: [SOURCE_ENRICHMENT.md](SOURCE_ENRICHMENT.md). Нижче також збережені описи попередніх етапів MVP.
-
-Поточний режим: порожня робоча база, реальний Excel crash-test до 10 тендерів. Інструкція: [CRASH_TEST.md](CRASH_TEST.md).
-
-# TenderPro demo
-
-Технічний pipeline усіх 4 агентів готовий: Collector → Classifier → Analyzer → Lifecycle. Agent 2/3 підтримують серверний Responses API, Agent 4 — rules та AI fallback; результати preview/staging без overwrite. Інструкція: [AGENT_SYSTEM.md](AGENT_SYSTEM.md).
-
-Поточний етап — MVP: демо-вхід → Тендери → окремі тести агентів або pipeline на одному тендері → staging/history → таблиця/картка. USER бачить Тендери й Налаштування; ADMIN також AI Агенти. Попередня основа: [MVP_ARCHITECTURE.md](MVP_ARCHITECTURE.md).
-
-Таблиця тендерів та демонстраційна AI-обробка. React 19, TanStack Start, Vite 8 та Nitro.
-
-## Локальний запуск
-
-Потрібен Node.js 22 (22.23+ для регресійних тестів).
-
-```bash
+```powershell
 npm ci
 npm run dev
-```
-
-## Перевірка production build
-
-```bash
-npm run build
 npm run typecheck
 npm test
-npm run preview -- --host 127.0.0.1 --port 3002
+npm run build
 ```
 
-`build` генерує Vercel Build Output у `.vercel/output`. `preview` використовує Nitro для запуску production-артефакту локально. `src/routeTree.gen.ts` генерується TanStack Router під час збірки.
+Node.js 22. `.tenderpro-local/` та `.env` приватні; desktop їх не читає і не змінює. `vite.config.ts` і Nitro/Vercel конфігурацію збережено. Production deployment не змінюється.
 
-## GitHub → Vercel
+## Windows Desktop Foundation
 
-1. Імпортувати `Vladisllav4ik/tenderpro-demo` у Vercel.
-2. Production branch: `main`; Root Directory: корінь репозиторію.
-3. Framework: автоматичне визначення TanStack Start. Build Command: `npm run build`; Install Command: `npm ci`; Node.js: `22.x`.
-4. Залишити Output Directory без ручного override: Nitro генерує повний Vercel Build Output, включно з SSR Function і маршрутизацією.
+```powershell
+npm run desktop:dev
+npm run desktop:build
+npm run desktop:test
+```
 
-Для mock-демо не потрібні ключі AI чи база даних. Реальні AI тести потребують серверного `OPENAI_API_KEY` у локальному `.env` та `npm run dev`. Production запити з демо-ADMIN заблоковані до закритої авторизації. Конфігурація закріплює Nitro preset `vercel` та Node.js 22.
+Потрібні Rust MSVC toolchain, Visual Studio C++ Build Tools/Windows SDK і WebView2. Зібраний EXE містить статичні assets і не потребує Vite, Node web server чи інтернету.
 
-Офіційна документація: [TanStack Start / Lovable на Vercel](https://vercel.com/docs/frameworks/full-stack/tanstack-start).
+SQLite знаходиться у стандартному application data directory `ua.tenderpro.desktop.foundation/tenderpro.sqlite`. Профіль Desktop POC та тендер DESKTOP-POC-001 — окремі демонстраційні дані. Коментар, колір, історія, перший перегляд і UI preferences записуються транзакційно.
 
-## Перевірені сценарії
+AI, watcher, Excel → AI pipeline, document backend, реальна авторизація та ADM sync ще не перенесені. Desktop adapters повідомляють недоступність; платних запитів не виконують. Excel parser/експорт і спільні екрани збережені; платформні файлові сценарії потребують окремої перевірки.
 
-- `/` і `/dashboard` перенаправляються у `/tenders`, `/profile` — у `/settings`.
-- Демо-вхід USER/ADMIN, персональні preferences, серверний захист кабінету `/agents`.
-- `/tenders`, автоматичні статуси й фільтр «В роботі», `/settings`.
-- XCMG: `/tenders/UA-2026-09-29-003902-a`.
-- DONGFENG: `/tenders/UA-2026-10-02-004811-a`.
-- Фільтри: `/tenders/UA-2026-08-25-006722-a`.
-- Excel demo import → AI-скринінг → картка → коментар → автоматичний статус.
+## Документація
 
-Початкові тендери та документи — fixtures. Excel імпортує перевірені рядки користувача, дублікати ID пропускаються. Меню «Тендери» запускає серверну mock-обробку до 100 видимих записів без реального OpenAI чи Prozorro API. Дані та налаштування зберігаються окремо для акаунтів у localStorage. Перевірки складу, 1С та постачальників у MVP немає. Конфігурації агентів, thresholds, audit/staging та rechecks зберігаються у приватному локальному server storage; demo sessions — у пам’яті. Перед production агентами/Vercel потрібні production auth, DB adapters та worker.
+- [Desktop Foundation](docs/development/DESKTOP_FOUNDATION.md)
+- [Правила робочого простору](docs/development/WORKSPACE_RULES.md)
+- [Архітектура web MVP](docs/architecture/MVP_ARCHITECTURE.md)
+- [Watcher і delta analysis](docs/architecture/PIPELINE_CHANGE_MONITORING.md)
+- [AI pipeline](docs/agents/AGENT_SYSTEM.md)
+- [Agent 2 / OpenAI](docs/agents/AGENT2_OPENAI.md)
+- [Prozorro / документи](docs/agents/SOURCE_ENRICHMENT.md)
+- [Web auth](docs/development/LOCAL_AUTH.md)
+- [ADMIN UI](docs/development/ADMIN_UI.md)
+- [Таблиця й картки](docs/development/TABLE_CARD_UPDATES.md)
+- [Web crash-test](docs/testing/CRASH_TEST.md)
+- [Перевірки Desktop Foundation](docs/testing/DESKTOP_FOUNDATION_RESULTS.md)
 
-Невідомі технічні параметри позначені для уточнення. Збірка має неблокуючі попередження про великий JS chunk і `vite-tsconfig-paths` у конфігурації Lovable.
+Історичні документи можуть описувати попередні етапи; фактична реалізація визначається поточним кодом.
 
-## Робоча таблиця: Compact і Detailed
+## Тимчасові файли
 
-«Деталізація» перемикає два незалежні режими з автоматичною зміною структури колонок. Compact: №, Коментар, Назва закупівлі, Предмет закупівлі, ID, Період подання, Загальна сума, Замовник, Категорія, AI, Статус. Detailed додає кількість, одиницю, ціну за одиницю перед загальною сумою, аукціон/поставку після подання, адресу після замовника, Технічні → Кваліфікаційні → Особливі вимоги, потім Категорія/AI/Статус.
-
-localStorage: tenderpro.users.<accountId>.table.compactLayout і tenderpro.users.<accountId>.table.detailedLayout, кожен містить version (v2), order, visibility, widths, pinned, sort. tenderpro.users.<accountId>.table.detailMode зберігає активний режим. Розкладки не впливають одна на одну. Меню «Колонки» підтримує видимість, drag/drop, стрілки, ширину та pin; resize також доступний у заголовках. № та Коментар завжди перші й закріплені, статус останній. Розкладки v1 мігрують зі збереженням ширин/видимості; допоміжні Категорія/AI/Статус лишаються в кінці. Додаткове закріплення адаптується до viewport: на малому екрані пріоритет має доступна ширина таблиці, налаштування pin зберігається.
-
-Коментар редагується у комірці, має дворядковий wrap і debounce 750 ms; Enter/blur зберігають одразу. commentText та commentColor незалежні. Палітра ручна: none/yellow/green/red/blue/purple/gray; працює з порожнім текстом, не змінює статус. Поле comment збережене як сумісний alias. Зміни тексту, кольору та статусу журналюються локально.
-
-Предмет закупівлі: перші дві позиції і +N, повний список у popover. ID відкриває Prozorro, окремої колонки посилання немає. Період подання містить початок, акцентний кінець і залишок; timeline відкривається без навігації. Точні datetime форматуються за Europe/Kyiv; до 24 год показуються години/хвилини. Якщо час відсутній у джерелі, показується --:--. Коли час відомий, показуються точні київські години і хвилини. Аукціон підтримує одну дату або інтервал, поставка — дату, діапазон або нормалізований текст. Невідомі нові detailed fields показують -. Вимоги очищуються від дублювання між трьома групами. Технічні, кваліфікаційні й особливі вимоги мають різні джерела.
-
-## Автоматичний lifecycle
-
-NEW — синій; WAITING і WAITING_DECISION — жовтий; IN_PROGRESS та підтверджений WON — зелений. REJECTED, NOT_SUBMITTED, LOST, CLOSED_NO_PARTICIPATION — помаранчевий. DISQUALIFIED, STRONG_REJECTED, CRITICAL_MISMATCH — червоний. CANCELLED — сірий. Ручного dropdown немає; переходи з timestamp зберігаються у history.
-
-Коментар класифікується консервативно з урахуванням контексту подання; сумнівні, заперечені та суперечливі формулювання не змінюють статус. Після поданої пропозиції «очікує рішення» є WAITING_DECISION. Закриття прийому без подання означає неучасть, а не перемогу. Тендер з поданою пропозицією очікує рішення після кінця прийому. Перемога потребує підтвердженого lifecycle.decision = won.
-
-STATUS_RECALC_DELAY_MS = 180000 ms; для demo/dev доступний VITE_STATUS_RECALC_DELAY_MS. statusRecalcAt зберігається, reload не обнуляє відлік. Синхронізація виконується при завантаженні, focus/visibilitychange та фоновій перевірці. useDemo().syncLifecycle приймає нові дані джерела, планує перерахунок і записує подію; підтверджений результат має пріоритет над коментарем. Реального fetch/sync із Prozorro на цьому етапі немає — це наступний крок інтеграції.
-
-## Збереження робочого простору
-
-Персональні localStorage ключі з префіксом tenderpro.users.<accountId>.table.: filters, sort (активний sort також усередині layout), zoom, aiVisible, aiPanelOpen, dateRange, selectedTenderId, scrollX, scrollY, fullscreenPreferred, detailMode. Дані, коментарі та історія зберігаються у tenderpro.users.<accountId>.tenders. Старі ключі одноразово мігрують тільки до першого демо-акаунта user. Reload і повернення з картки відновлюють поточний режим та його налаштування; некоректні layout значення відкидаються. Усі дані локальні для браузера.
-
-Fullscreen вмикається лише за user gesture. Після reload/Esc намір зберігається, показується кнопка повернення; автоматичний requestFullscreen не викликається. Явний вихід кнопкою вимикає намір.
-
-## Картка і AI preview
-
-Картка: Огляд, AI аналіз, Документи, Вимоги, Історія. Вимоги та документи залежать від типу тендера; каталожні номери фільтрів не потрапляють у XCMG/DONGFENG. CPV і тип процедури не вигадуються, дата публікації demo визначена з ID. Історія записує реальні імпорт, перший перегляд, зміну коментаря, автоматичні переходи й дії з документами.
-
-Документи — локальні демо-витяги, з реальним розміром тексту, датою демо-джерела та збереженими downloaded/AI parsed індикаторами. Завантаження чесно повертає .demo.txt; оригінальні PDF/XLSX/DOCX слід відкривати через Prozorro. AI аналіз документів демонстраційний, зовнішній AI не викликається.
-
-AI side panel — стислий preview вибраного тендера з параметрами, кількістю документів та двома ризиками. Панель масштабується до 620 px, має власну прокрутку й закріплені дії; при дуже низькому viewport шрифти та відступи адаптуються до доступної висоти.
-
-## Період відображення і прокрутка
-
-За замовчуванням — останні 7 календарних днів за Europe/Kyiv включно із сьогодні. У центрі над таблицею відкривається date range picker: 7/14 днів, останні 30 днів, історія від першої публікації, довільний from/to. Період фільтрує дату публікації, а не дату дедлайну. tenderpro.users.<accountId>.table.dateRange зберігає preset/from/to; rolling presets оновлюються разом із календарем. Старі приховані status tabs більше не впливають на вибірку. Статус/категорія/бюджет/строк подання доступні через Фільтри, замовник — також через пошук.
-
-Status tabs і pagination прибрані. Усі рядки активної вибірки доступні одним vertical scroll зі sticky header; 30–40 рядків не розбиваються на сторінки. Старі ключі page/rowsPerPage не використовуються. Віртуалізація для великих наборів — наступний етап за потреби.
-
-## Excel: поточний вигляд, шаблон та імпорт
-
-Quick access містить зелену XLSX іконку. Вона й «Експортувати таблицю» у меню ... викликають однаковий експорт фактичного відфільтрованого періоду: активний Compact/Detailed, видимість/порядок/ширини, sort, коментарі/ручні кольори, status colors, ID hyperlinks, wrap/grid/freeze. При AI OFF колонка не експортується.
-
-«Завантажити шаблон Excel» — окрема функція createImportTemplateWorkbook/downloadImportTemplate. XLSX містить аркуш Імпорт із 22 підтримуваними заголовками та окрему Інструкцію, без вигаданих тендерів. Обов'язкові поля: Назва закупівлі, ID, Дата завершення, Загальна сума, Замовник. Дати — ДД.ММ.РРРР/ISO або Excel date cells, час — HH:mm за Europe/Kyiv; точний ISO з offset також підтримується. Сезонні часові пояси враховуються, неіснуючі часи переходу DST відхиляються. Невідомий час можна залишити порожнім.
-
-«Імпортувати Excel» перевіряє XLSX локально, показує готові рядки/дублікати/помилки з номерами. Додаються тільки підтверджені валідні рядки, існуючі ID не перезаписуються. Предмети та вимоги підтримують списки через newline/semicolon. Сума/ціна/кількість читаються як числа. Імпортовані рядки позначені analysisPending: AI score/вимоги не вигадуються, демо-специфікації до них не домішуються. Активний період/фільтри можуть приховати імпортовані історичні рядки — змініть date range.
-
-Шаблон імпорту та експорт робочого вигляду мають різні цілі й структури. Зовнішній AI і fetch Prozorro не викликаються. ExcelJS завантажується лише при Excel-діях.
+`_temp/screenshots`, `_temp/logs`, `_temp/reports`, `_temp/other` — видалювані QA-матеріали, ignored Git. Програма й production build від них не залежать. Постійні fixtures залишаються у `tests/fixtures` та `src-tauri/fixtures`.

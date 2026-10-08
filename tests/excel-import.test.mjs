@@ -197,8 +197,8 @@ test("35 rows and a 205-item subject list stay intact for unpaginated UI/import 
   assert.equal(parsed.tenders[0].objects.length, 205);
   assert.equal(parsed.tenders[0].objects[0].quantity, undefined);
   assert.equal(parsed.tenders[0].quantity, 2);
-  await mkdir(".test-output", { recursive: true });
-  await writeFile(".test-output/ux-import-35.xlsx", new Uint8Array(buffer));
+  await mkdir("_temp/other", { recursive: true });
+  await writeFile("_temp/other/ux-import-35.xlsx", new Uint8Array(buffer));
 });
 
 test("imported row previews do not invent demo documents, risk tags or AI conclusions", () => {

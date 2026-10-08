@@ -1,0 +1,17 @@
+CREATE TABLE schema_migrations(version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL);
+CREATE TABLE tenders(id TEXT PRIMARY KEY, payload TEXT NOT NULL CHECK(json_valid(payload)), revision INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE tender_sources(id INTEGER PRIMARY KEY, tender_id TEXT NOT NULL REFERENCES tenders(id), source TEXT NOT NULL, external_id TEXT NOT NULL, raw_json TEXT CHECK(raw_json IS NULL OR json_valid(raw_json)), UNIQUE(source,external_id));
+CREATE TABLE comments(tender_id TEXT PRIMARY KEY REFERENCES tenders(id), text TEXT NOT NULL DEFAULT '', color TEXT NOT NULL DEFAULT 'none' CHECK(color IN ('none','yellow','green','red','blue','purple','gray')), revision INTEGER NOT NULL DEFAULT 0, updated_at TEXT NOT NULL);
+CREATE TABLE statuses(tender_id TEXT PRIMARY KEY REFERENCES tenders(id), status TEXT NOT NULL, updated_at TEXT NOT NULL);
+CREATE TABLE history(id INTEGER PRIMARY KEY, tender_id TEXT NOT NULL REFERENCES tenders(id), kind TEXT NOT NULL, text TEXT NOT NULL, at TEXT NOT NULL);
+CREATE TABLE preferences(key TEXT PRIMARY KEY, value TEXT NOT NULL CHECK(json_valid(value)), updated_at TEXT NOT NULL);
+CREATE TABLE documents(id TEXT PRIMARY KEY, tender_id TEXT NOT NULL REFERENCES tenders(id), logical_source_id TEXT);
+CREATE TABLE document_versions(id TEXT PRIMARY KEY, document_id TEXT NOT NULL REFERENCES documents(id), hash TEXT, local_path TEXT, metadata TEXT NOT NULL CHECK(json_valid(metadata)), UNIQUE(document_id,hash));
+CREATE TABLE ai_results(id TEXT PRIMARY KEY, tender_id TEXT NOT NULL REFERENCES tenders(id), agent_id TEXT NOT NULL, source_revision TEXT, result TEXT NOT NULL CHECK(json_valid(result)));
+CREATE TABLE agent_jobs(id TEXT PRIMARY KEY, tender_id TEXT NOT NULL REFERENCES tenders(id), agent_id TEXT NOT NULL, state TEXT NOT NULL DEFAULT 'pending', attempts INTEGER NOT NULL DEFAULT 0, lease_until TEXT, input TEXT CHECK(input IS NULL OR json_valid(input)), idempotency_key TEXT UNIQUE);
+CREATE TABLE sync_outbox(id TEXT PRIMARY KEY, entity_id TEXT NOT NULL, event TEXT NOT NULL CHECK(json_valid(event)), state TEXT NOT NULL DEFAULT 'pending', created_at TEXT NOT NULL);
+CREATE TABLE sync_cursors(scope TEXT PRIMARY KEY, cursor TEXT NOT NULL, updated_at TEXT NOT NULL);
+CREATE INDEX history_tender ON history(tender_id,id);
+CREATE INDEX agent_jobs_state ON agent_jobs(state);
+INSERT INTO schema_migrations VALUES(1,strftime('%Y-%m-%dT%H:%M:%fZ','now'));
+PRAGMA user_version=1;

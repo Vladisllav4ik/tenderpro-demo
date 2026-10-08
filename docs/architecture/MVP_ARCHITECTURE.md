@@ -1,6 +1,6 @@
 # TenderPro MVP
 
-Наступний етап реалізовано: Agent 2 підтримує реальний OpenAI Responses API для **одного локального тесту без запису**; решта pipeline лишається mock. Актуальна інтеграція, журнал, guards і перевірки: [AGENT2_OPENAI.md](AGENT2_OPENAI.md). API key не доступний frontend. Перед production API потрібен закритий ADMIN; платний demo-test у production заблокований.
+Наступний етап реалізовано: Agent 2 підтримує реальний OpenAI Responses API для **одного локального тесту без запису**; решта pipeline лишається mock. Актуальна інтеграція, журнал, guards і перевірки: [AGENT2_OPENAI.md](../agents/AGENT2_OPENAI.md). API key не доступний frontend. Перед production API потрібен закритий ADMIN; платний demo-test у production заблокований.
 
 Вертикаль: демо-вхід → імпорт/наявні тендери → серверна mock-обробка → таблиця → картка → збереження → автоматичні статуси.
 

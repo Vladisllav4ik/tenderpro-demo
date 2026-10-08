@@ -15,7 +15,12 @@
     "preview": "nitro preview",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "auth:seed": "node --experimental-strip-types scripts/seed-local-auth.mjs"
+    "auth:seed": "node --experimental-strip-types scripts/seed-local-auth.mjs",
+    "desktop:frontend:dev": "vite --config vite.desktop.config.ts",
+    "desktop:frontend:build": "vite build --config vite.desktop.config.ts",
+    "desktop:dev": "tauri dev",
+    "desktop:build": "tauri build",
+    "desktop:test": "cargo test --manifest-path src-tauri/Cargo.toml"
   },
   "overrides": {
     "rolldown": "1.2.1",
@@ -27,6 +32,7 @@
     }
   },
   "dependencies": {
+    "@fontsource/manrope": "^5.3.0",
     "@hookform/resolvers": "^5.2.2",
     "@radix-ui/react-accordion": "^1.2.12",
     "@radix-ui/react-alert-dialog": "^1.1.15",
@@ -59,6 +65,7 @@
     "@tanstack/react-router": "1.170.41",
     "@tanstack/react-start": "1.168.60",
     "@tanstack/router-plugin": "1.168.42",
+    "@tauri-apps/api": "^2.12.1",
     "bcryptjs": "^3.0.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -90,6 +97,7 @@
   "devDependencies": {
     "@eslint/js": "^9.32.0",
     "@lovable.dev/vite-tanstack-config": "2.25.2",
+    "@tauri-apps/cli": "^2.12.1",
     "@types/node": "^22.16.5",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",

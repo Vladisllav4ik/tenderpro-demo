@@ -1,0 +1,12 @@
+{
+  "identifier": "desktop-foundation",
+  "description": "Local desktop UI; no general SQL, filesystem, shell or HTTP access",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "core:default",
+    "core:window:allow-destroy",
+    "core:window:allow-close"
+  ]
+}
