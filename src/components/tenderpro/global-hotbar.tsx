@@ -78,7 +78,7 @@ export function GlobalHotbar() {
             <Settings />
             Налаштування
           </Link>
-          <button
+          {!account.authDisabled && <button
             className="sheet-nav-link"
             onClick={async () => {
               await logout();
@@ -87,7 +87,7 @@ export function GlobalHotbar() {
           >
             <LogOut />
             Вийти
-          </button>
+          </button>}
         </PopoverContent>
       </Popover>
     </header>

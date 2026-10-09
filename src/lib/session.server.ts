@@ -10,6 +10,15 @@ import {
   MemorySessionRepository,
 } from "./auth-repositories.server";
 import { AuthService, SESSION_SECONDS } from "./auth-service.server";
+import type { Account } from "./account-model";
+// Web demo only. Desktop and ADM have independent authorization.
+const WEB_DEMO_ACCOUNT: Account = {
+  id: "admin",
+  name: "TenderPro Demo",
+  email: "",
+  role: "ADMIN",
+  authDisabled: true,
+};
 const COOKIE = "tenderpro_session";
 const auth = new AuthService(
   new LocalAccountRepository(),
@@ -17,7 +26,7 @@ const auth = new AuthService(
 );
 export async function currentAccount() {
   setResponseHeader("Cache-Control", "private, no-store");
-  return auth.currentAccount(getCookie(COOKIE));
+  return { ...WEB_DEMO_ACCOUNT };
 }
 export async function requireAccount(admin = false) {
   const account = await currentAccount();
