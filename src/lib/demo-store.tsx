@@ -104,7 +104,9 @@ function migrate(raw: unknown): DemoState {
 }
 export function DemoProvider({ children }: { children: ReactNode }) {
   const account = useAccount();
-  const storageKey = accountKey(account?.id ?? "guest", "tenders");
+  const storageKey = account?.authDisabled
+    ? "tenderpro.web-demo.xlsx-2026-10-04.v1"
+    : accountKey(account?.id ?? "guest", "tenders");
   const [state, setInternalState] = useState(initial);
   const stateRef = useRef(state);
   stateRef.current = state;
@@ -133,6 +135,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
   const refreshTenders = useCallback(async () => {
     if (!account) return;
+    if (account.authDisabled) return;
     const records = await getImportedCrash();
     setInternalState((previous) => ({
       ...previous,
@@ -154,6 +157,31 @@ export function DemoProvider({ children }: { children: ReactNode }) {
   }, [account?.id, refreshTenders]);
   useEffect(() => {
     let active = true;
+    if (account?.authDisabled) {
+      const load = async () => {
+        let saved: DemoState | undefined;
+        try {
+          const parsed = JSON.parse(localStorage.getItem(storageKey) ?? "null");
+          if (Array.isArray(parsed?.tenders) && parsed.tenders.length)
+            saved = { ...initial, ...parsed };
+        } catch {}
+        if (!saved) {
+          const response = await fetch("/demo/tenders-2026-10-04.json");
+          if (!response.ok) throw new Error("Не вдалося завантажити таблицю демо.");
+          const tenders: Tender[] = await response.json();
+          saved = { ...initial, tenders };
+        }
+        if (active) {
+          setInternalState(saved);
+          setReady(true);
+        }
+      };
+      void load().catch((error) => {
+        console.error("Демо-таблиця недоступна", error);
+        if (active) setReady(true);
+      });
+      return () => { active = false; };
+    }
     try {
       // Purge every legacy account's tender lists; keep preferences and server agent configuration.
       for (let i = localStorage.length - 1; i >= 0; i--) {
@@ -252,7 +280,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
       void saveCrashComment({ data: { id, comment } }).catch(() =>
         console.warn("Коментар не збережено на сервері."),
       );
-    if (changed)
+    if (changed && !account?.authDisabled)
       void queueStatusRecheck({ data: lifecycleInputFromTender(changed) })
         .then((reply) => {
           if (!reply.ok)
@@ -281,7 +309,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
     data: NonNullable<Tender["lifecycle"]>,
   ) => {
     const tender = stateRef.current.tenders.find((t) => t.id === id);
-    if (tender)
+    if (tender && !account?.authDisabled)
       void queueStatusRecheck({
         data: lifecycleInputFromTender(
           applyLifecycle(tender, data, new Date(), validDelay),
