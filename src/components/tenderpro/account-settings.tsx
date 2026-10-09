@@ -68,7 +68,7 @@ export function AccountSettings() {
               Персональні налаштування зберігаються у цьому браузері для вашого
               акаунта.
             </p>
-            <button
+            {!account.authDisabled && <button
               className="rounded border px-4 py-2"
               onClick={async () => {
                 await logout();
@@ -76,7 +76,7 @@ export function AccountSettings() {
               }}
             >
               Вийти
-            </button>
+            </button>}
           </div>
         </TabsContent>
         <TabsContent value="table">

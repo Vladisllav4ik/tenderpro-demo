@@ -3,6 +3,7 @@ export type Account = {
   name: string;
   email: string;
   role: "USER" | "ADMIN";
+  authDisabled?: boolean;
 };
 export const accountInitials = (name: string) =>
   name
